@@ -12,6 +12,7 @@ import {
   escalateSubmission,
   requestEvidence,
   fetchAuditEvents,
+  fetchCrossDocComparisons,
 } from '../services/api';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
@@ -71,28 +72,36 @@ export const ApplicationReviewWorkspacePage: React.FC<ApplicationReviewWorkspace
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const [inspectingFinding, setInspectingFinding] = useState<Finding | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [isRefreshingCrossDoc, setIsRefreshingCrossDoc] = useState(false);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (preserveDocId?: string, silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const data = await fetchSubmissionById(submissionId);
       setSubmission(data);
 
-      // Default active document
-      if (data.evidence.length > 0) {
-        setSelectedDocId(data.evidence[0].id);
+      // Preserve active document or default to first
+      if (preserveDocId) {
+        setSelectedDocId(preserveDocId);
         setCurrentPage(1);
+      } else if (!selectedDocId || !data.evidence.some((e) => e.id === selectedDocId)) {
+        if (data.evidence.length > 0) {
+          setSelectedDocId(data.evidence[0].id);
+          setCurrentPage(1);
+        }
       }
 
       // Default active finding
       if (data.findings.length > 0) {
-        setSelectedFindingId(data.findings[0].id);
+        setSelectedFindingId((prev) =>
+          prev && data.findings.some((f) => f.id === prev) ? prev : data.findings[0].id
+        );
       }
 
       const events = await fetchAuditEvents(50);
       setAuditEvents(events.filter((e) => e.submissionId === submissionId || e.applicationId === data.applicationId));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -657,6 +666,16 @@ export const ApplicationReviewWorkspacePage: React.FC<ApplicationReviewWorkspace
                   setActiveTab('evidence');
                 }
               }}
+              isRefreshing={isRefreshingCrossDoc}
+              onRefreshChecks={async () => {
+                setIsRefreshingCrossDoc(true);
+                try {
+                  await fetchCrossDocComparisons(submission.id);
+                  await loadData(selectedDocId ?? undefined, true);
+                } finally {
+                  setIsRefreshingCrossDoc(false);
+                }
+              }}
             />
           </div>
         )}
@@ -713,16 +732,19 @@ export const ApplicationReviewWorkspacePage: React.FC<ApplicationReviewWorkspace
         submissionId={submission.id}
         institutionName={submission.institution.name}
         onDocumentUploaded={async (res) => {
-          setIsUploadModalOpen(false);
-          const fieldsCount = Object.keys(res.extractedFields || {}).length;
+          // Keep modal open so reviewer can inspect extracted fields, OCR metrics, and statutory findings
+          const fieldsCount = Object.keys(res.extractedFields || {}).filter(
+            (k) => k !== 'extractedFieldCount' && k !== 'landAreaMention'
+          ).length;
           const findingsCount = (res.findingsRaised || []).length;
           setActionMessage({
             type: 'success',
-            text: `Document uploaded: "${res.filename}" processed (${fieldsCount} fields extracted, ${findingsCount} rule checks evaluated).`,
+            text: `Document uploaded: "${res.filename}" processed (${fieldsCount} field${fieldsCount === 1 ? '' : 's'} extracted, ${findingsCount} rule check${findingsCount === 1 ? '' : 's'} evaluated).`,
           });
-          await loadData();
+          // Silently refresh submission evidence in background and set active document to newly uploaded one
+          await loadData(res.documentId, true);
           onStatusUpdated?.();
-          setTimeout(() => setActionMessage(null), 5000);
+          setTimeout(() => setActionMessage(null), 6000);
         }}
       />
     </div>

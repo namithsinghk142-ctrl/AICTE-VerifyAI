@@ -44,6 +44,7 @@ from .document_processing import (
     check_tesseract_engine_available,
 )
 from .regulatory_rules import evaluate_extracted_document
+from .cross_doc_engine import run_cross_doc_checks
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -782,6 +783,13 @@ async def upload_application_document(
 
     db.commit()
 
+    # Run cross-document consistency checks across all uploaded docs for this submission.
+    # Safe to call on every upload — upserts comparison rows in the DB.
+    try:
+        run_cross_doc_checks(sub.id, db)
+    except Exception:
+        pass  # Non-fatal: cross-doc check failure must not break the upload response
+
     return {
         "success": True,
         "message": f"Successfully uploaded and verified '{file.filename}'. Extracted {len(extracted_text)} characters.",
@@ -812,6 +820,26 @@ async def upload_application_document(
             for f in added_findings
         ],
         "newStatus": sub.status,
+    }
+
+
+# ─── Cross-Document Consistency Checks ───────────────────────────────────────
+
+@app.get("/api/v1/submissions/{id}/cross-doc-checks")
+def get_cross_doc_checks(id: str, db: Session = Depends(get_db)):
+    """
+    (Re-)run cross-document consistency checks for all uploaded documents in
+    submission {id} and return results.  Safe to call repeatedly — upserts rows.
+    Returns an empty list if fewer than 2 uploaded documents exist.
+    """
+    sub = db.query(SubmissionModel).filter(SubmissionModel.id == id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail=f"Submission {id} not found")
+    results = run_cross_doc_checks(id, db)
+    return {
+        "submissionId": id,
+        "comparisons": results,
+        "count": len(results),
     }
 
 

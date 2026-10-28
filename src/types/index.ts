@@ -90,6 +90,8 @@ export interface CrossDocComparisonEntry {
   sourcePage: number;
   isMismatched?: boolean;
   confidenceScore: number;
+  /** MATCH | MISMATCH | MISSING | UNABLE_TO_COMPARE */
+  verdict?: string;
 }
 
 export interface CrossDocComparisonField {

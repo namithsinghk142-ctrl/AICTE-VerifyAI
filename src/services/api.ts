@@ -12,6 +12,7 @@ import type {
   ReviewerProfile,
   EvidenceItem,
   Finding,
+  CrossDocComparisonField,
 } from '../types';
 
 import {
@@ -480,17 +481,24 @@ export async function uploadApplicationDocument(
       `/submissions/${submissionId}/documents/upload`,
       {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       }
     );
     return res;
   } catch (err: any) {
-    // If backend returns an error message (e.g. invalid file format or size), throw it
-    if (err.message && !err.message.includes('Failed to fetch')) {
+    // If backend returns an explicit error message (e.g. invalid file format or size), throw it
+    if (
+      err.message &&
+      !err.message.includes('Failed to fetch') &&
+      !err.message.includes('NetworkError') &&
+      !err.message.includes('API error 502') &&
+      !err.message.includes('API error 503')
+    ) {
       throw err;
     }
 
-    // Local simulated fallback
+    // Local fallback ONLY when backend server is genuinely offline / unreachable
     await delay(600);
     const sub = localSubmissions.find((s) => s.id === submissionId);
     if (!sub) throw new Error(`Submission ${submissionId} not found`);
@@ -507,7 +515,7 @@ export async function uploadApplicationDocument(
       verificationStatus: 'verified',
       issuer: metadata.issuer || 'Uploaded Applicant Record',
       description: metadata.description || `Uploaded document: ${file.name}`,
-      checksumSha256: 'a1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef1234567890',
+      checksumSha256: 'simulated-offline-checksum-' + Date.now().toString(16),
       pageCount: 1,
     };
     sub.evidence.unshift(newDoc);
@@ -519,31 +527,50 @@ export async function uploadApplicationDocument(
       action: 'submission_received',
       performedBy: 'Reviewer / Intake Pipeline',
       timestamp: new Date().toISOString(),
-      details: `Document '${file.name}' uploaded and certified with SHA-256 integrity checksum.`,
+      details: `Document '${file.name}' uploaded in offline simulated session.`,
     });
 
     return {
       success: true,
-      message: `Document '${file.name}' uploaded successfully (Simulated mode).`,
+      message: `Document '${file.name}' registered (Offline Fallback).`,
       documentId: docId,
       filename: file.name,
       fileSizeBytes: file.size,
       checksumSha256: newDoc.checksumSha256!,
       pageCount: 1,
       ocrUsed: false,
-      ocrStatus: 'Simulated mode: Backend server currently unreachable. Native text and fields simulated.',
-      extractedFields: {
-        institutionName: sub.institution.name,
-        applicationId: sub.applicationId,
-        surveyNumber: '48/2',
-        landArea: '2.5 acres',
-        referenceNo: `SIM/2026/DOC-${Math.floor(Math.random() * 9000 + 1000)}`,
-        issueDate: new Date().toISOString().split('T')[0],
-        extractedFieldCount: 6,
-      },
+      ocrStatus:
+        'Offline Fallback: Backend server is unreachable. Automatic OCR and field extraction require the active VerifyAI backend server.',
+      extractedFields: {}, // Never fabricate extracted fields when offline!
       findingsRaised: [],
       newStatus: sub.status,
     };
+  }
+}
+
+// ─── Cross-Document Consistency Checks ───────────────────────────────────────
+
+export interface CrossDocCheckResult {
+  submissionId: string;
+  comparisons: CrossDocComparisonField[];
+  count: number;
+}
+
+/**
+ * (Re-)run cross-document consistency checks for a submission.
+ * Calls the backend engine which normalises and compares extracted fields
+ * across all uploaded documents.  Returns an empty list when fewer than
+ * two uploaded documents exist.
+ */
+export async function fetchCrossDocComparisons(
+  submissionId: string
+): Promise<CrossDocCheckResult> {
+  try {
+    return await apiFetch<CrossDocCheckResult>(
+      `/submissions/${submissionId}/cross-doc-checks`
+    );
+  } catch {
+    return { submissionId, comparisons: [], count: 0 };
   }
 }
 

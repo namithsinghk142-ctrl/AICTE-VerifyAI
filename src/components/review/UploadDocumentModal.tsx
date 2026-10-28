@@ -17,21 +17,30 @@ import { uploadApplicationDocument, type DocumentUploadResult } from '../../serv
 
 const FIELD_LABEL_MAP: Record<string, string> = {
   institutionName: 'Institution Legal Name',
+  institution_name: 'Institution Legal Name',
   surveyNumber: 'Land Survey / Plot No.',
+  survey_number: 'Land Survey / Plot No.',
   landArea: 'Campus Land Area',
+  land_area: 'Campus Land Area',
   landAreaMention: 'Land Area Citation',
   applicationId: 'Application ID',
+  application_id: 'Application ID',
   issuingAuthority: 'Issuing / Certifying Authority',
+  issuing_authority: 'Issuing / Certifying Authority',
   issueDate: 'Document Issue / Execution Date',
+  issue_date: 'Document Issue / Execution Date',
   referenceNo: 'Reference / Order No.',
+  reference_no: 'Reference / Order No.',
   cadreMention: 'Faculty Cadre Ratio Declaration',
   cadreRatio: 'Cadre Proportion (§6.14)',
+  cadre_ratio: 'Cadre Proportion (§6.14)',
   aicteIdMention: 'Permanent AICTE Institute ID',
 };
 
 function formatFieldLabel(key: string): string {
   if (FIELD_LABEL_MAP[key]) return FIELD_LABEL_MAP[key];
   return key
+    .replace(/_/g, ' ')
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, (str) => str.toUpperCase())
     .trim();
@@ -72,6 +81,11 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
+
+  const handleModalClose = () => {
+    handleReset();
+    onClose();
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setValidationError(null);
@@ -116,7 +130,9 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
         description: description.trim() || undefined,
       });
 
+      // Keep uploadResult in state so reviewer can inspect extracted fields and verification output
       setUploadResult(result);
+      // Notify parent to refresh dossier in background without closing modal
       onDocumentUploaded(result);
     } catch (err: any) {
       setValidationError(err.message || 'Document upload and validation failed.');
@@ -155,8 +171,9 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+            onClick={handleModalClose}
+            className="p-1.5 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors cursor-pointer"
+            aria-label="Close modal"
           >
             <X size={16} />
           </button>
@@ -333,27 +350,35 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
                   </div>
                 </div>
 
-                {/* OCR Engine Status Banner */}
+                {/* OCR & Extraction Engine Status Banner */}
                 <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] flex items-start gap-2 text-slate-600">
                   <Info size={13} className="text-blue-500 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-semibold text-slate-800 block">OCR Engine Status:</span>
-                    <span>{uploadResult.ocrStatus}</span>
+                    <span className="font-semibold text-slate-800 block">OCR &amp; Extraction Engine Status:</span>
+                    <span className="leading-relaxed">{uploadResult.ocrStatus}</span>
                   </div>
                 </div>
               </div>
 
               {/* Extracted Document Fields Card */}
               {(() => {
-                const displayFieldsEntries = Object.entries(uploadResult.extractedFields || {}).filter(([key, val]) => {
-                  if (key === 'extractedFieldCount') return false;
-                  if (key === 'landAreaMention' && uploadResult.extractedFields.landArea) return false;
-                  return val !== null && val !== undefined && String(val).trim().length > 0;
-                });
+                const displayFieldsEntries = Object.entries(uploadResult.extractedFields || {}).filter(
+                  ([key, val]) => {
+                    if (key === 'extractedFieldCount') return false;
+                    if (
+                      key === 'landAreaMention' &&
+                      uploadResult.extractedFields.landArea &&
+                      String(val).trim().toLowerCase() === `land area: ${String(uploadResult.extractedFields.landArea).trim().toLowerCase()}`
+                    ) {
+                      return false;
+                    }
+                    return val !== null && val !== undefined && String(val).trim().length > 0;
+                  }
+                );
 
                 return (
                   <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-3 shadow-xs">
-                    <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-100">
+                    <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-100 flex-wrap gap-2">
                       <div className="flex items-center gap-1.5 font-bold text-slate-800 uppercase tracking-wide">
                         <ScanText size={14} className="text-[#C14E83]" />
                         <span>Extracted Document Fields</span>
@@ -364,14 +389,20 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
                         )}
                       </div>
                       <div>
-                        {uploadResult.ocrUsed ? (
+                        {uploadResult.ocrStatus?.toLowerCase().includes('offline') ||
+                        uploadResult.ocrStatus?.toLowerCase().includes('simulated') ? (
+                          <span className="px-2.5 py-0.5 text-[10.5px] font-semibold rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1.5">
+                            <Info size={11} className="text-amber-600" />
+                            Offline Simulation Mode
+                          </span>
+                        ) : uploadResult.ocrUsed ? (
                           <span className="px-2.5 py-0.5 text-[10.5px] font-semibold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1.5">
                             <Scan size={11} className="text-indigo-600" />
                             Tesseract OCR Processed
                           </span>
                         ) : (
-                          <span className="px-2.5 py-0.5 text-[10.5px] font-semibold rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1.5">
-                            <FileText size={11} className="text-slate-500" />
+                          <span className="px-2.5 py-0.5 text-[10.5px] font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                            <FileText size={11} className="text-emerald-600" />
                             PyMuPDF Digital Native
                           </span>
                         )}
@@ -380,26 +411,33 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
 
                     {displayFieldsEntries.length === 0 ? (
                       <div className="p-4 bg-slate-50/80 rounded-lg border border-dashed border-slate-200 text-center text-slate-500 text-xs">
-                        <p className="font-semibold text-slate-700">No structured fields extracted</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          No explicit key fields (such as Survey Number, Land Area, or Application ID) were detected in the text layer.
+                        <ScanText size={20} className="mx-auto text-slate-400 mb-1.5" />
+                        <p className="font-semibold text-slate-700">No structured fields detected</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5 max-w-md mx-auto">
+                          No explicit key fields (such as Survey Number, Land Area, or Application ID) were detected in the text layer of this document.
                         </p>
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 gap-2.5">
-                        {displayFieldsEntries.map(([key, val]) => (
-                          <div
-                            key={key}
-                            className="p-2.5 rounded-lg bg-slate-50/70 border border-slate-200/80 flex flex-col gap-0.5"
-                          >
-                            <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
-                              {formatFieldLabel(key)}
-                            </span>
-                            <div className="font-mono text-xs font-semibold text-slate-800 break-words select-all">
-                              {String(val)}
+                        {displayFieldsEntries.map(([key, val]) => {
+                          const strVal = String(val);
+                          const isFullWidth = strVal.length > 36 || key.toLowerCase().includes('mention');
+                          return (
+                            <div
+                              key={key}
+                              className={`p-2.5 rounded-lg bg-slate-50/70 border border-slate-200/80 flex flex-col gap-0.5 ${
+                                isFullWidth ? 'col-span-2' : ''
+                              }`}
+                            >
+                              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+                                {formatFieldLabel(key)}
+                              </span>
+                              <div className="font-mono text-xs font-semibold text-slate-800 break-words select-all">
+                                {strVal}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -450,7 +488,7 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
         <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
           {!uploadResult ? (
             <>
-              <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>
+              <Button variant="outline" size="sm" onClick={handleModalClose} disabled={loading}>
                 Cancel
               </Button>
               <Button
@@ -469,7 +507,7 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
               <Button variant="outline" size="sm" onClick={handleReset}>
                 Upload Another Document
               </Button>
-              <Button variant="primary" size="sm" onClick={onClose} icon={<Eye size={13} />}>
+              <Button variant="primary" size="sm" onClick={handleModalClose} icon={<Eye size={13} />}>
                 View In Evidence Dossier
               </Button>
             </>
@@ -479,3 +517,4 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
     </div>
   );
 };
+
