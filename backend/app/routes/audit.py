@@ -166,3 +166,41 @@ def get_application_audit_trail(
         page_size=page_size,
         total_pages=total_pages,
     )
+
+
+@router.get(
+    "/audit",
+    summary="List audit events formatted for frontend audit stream",
+)
+def get_audit_compat(
+    limit: int = Query(50, ge=1, le=200),
+    action: str | None = Query(None),
+    submission_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    query = db.query(AuditEvent)
+    if action and action != "all":
+        query = query.filter(AuditEvent.event_type == action)
+    if submission_id:
+        query = query.filter(AuditEvent.application_id == submission_id)
+
+    events = query.order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc()).limit(limit).all()
+    out = []
+    for ev in events:
+        inst_name = "Institution"
+        if ev.application_id:
+            app_obj = db.get(Application, ev.application_id)
+            if app_obj and app_obj.institution_name:
+                inst_name = app_obj.institution_name
+
+        out.append({
+            "id": ev.id,
+            "submissionId": ev.application_id or "",
+            "applicationId": ev.application_id or "",
+            "institutionName": inst_name,
+            "action": ev.event_type,
+            "performedBy": ev.actor or "Reviewer",
+            "timestamp": ev.created_at.isoformat() if ev.created_at else "",
+            "details": ev.details or f"Audit event: {ev.event_type}",
+        })
+    return out

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import type { Submission, DashboardMetrics, AuditEvent, PipelineStage } from '../types';
+import type { Submission, DashboardMetrics, AuditEvent, PipelineStage, DatasetMode } from '../types';
 import {
   fetchSubmissions,
   fetchDashboardMetrics,
   fetchAuditEvents,
+  fetchPublicReferenceInstitutions,
 } from '../services/api';
 import { computePipelineStagesFromSubmissions } from '../data/mockData';
 import { MetricCard } from '../components/ui/MetricCard';
@@ -12,6 +13,8 @@ import { PipelineProgress } from '../components/dashboard/PipelineProgress';
 import { AuditEventFeed } from '../components/dashboard/AuditEventFeed';
 import { HelpTooltip } from '../components/ui/HelpTooltip';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { DatasetModeToggle } from '../components/dashboard/DatasetModeToggle';
+import { PublicReferenceDirectoryView } from '../components/dashboard/PublicReferenceDirectoryView';
 import {
   FileStack,
   Clock,
@@ -22,6 +25,7 @@ import {
   Building2,
   ExternalLink,
   FlaskConical,
+  ShieldCheck,
 } from 'lucide-react';
 
 // ─── Demo-timeline notice ─────────────────────────────────────────────────────
@@ -158,6 +162,8 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
   onOpenReviewWorkspace,
   onNavigate,
 }) => {
+  const [datasetMode, setDatasetMode] = useState<DatasetMode>('synthetic');
+  const [referenceCount, setReferenceCount] = useState<number>(10);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
@@ -165,23 +171,35 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  const load = async (mode: DatasetMode = datasetMode) => {
     setLoading(true);
-    const [m, sr, ae] = await Promise.all([
-      fetchDashboardMetrics(),
-      fetchSubmissions(),
+    const [m, sr, ae, refRes] = await Promise.all([
+      fetchDashboardMetrics(mode),
+      fetchSubmissions({}, mode),
       fetchAuditEvents(8),
+      fetchPublicReferenceInstitutions({ limit: 1 }),
     ]);
     setMetrics(m);
-    const sorted = [...sr.items].sort((a, b) => b.priorityScore - a.priorityScore);
-    setSubmissions(sorted);
-    setPipelineStages(computePipelineStagesFromSubmissions(sorted));
+    setReferenceCount(refRes.total || 10);
+    if (mode === 'real') {
+      setSubmissions([]);
+      setPipelineStages([]);
+      setSelectedId(null);
+    } else {
+      const sorted = [...sr.items].sort((a, b) => b.priorityScore - a.priorityScore);
+      setSubmissions(sorted);
+      setPipelineStages(computePipelineStagesFromSubmissions(sorted));
+      if (sorted.length > 0) setSelectedId(sorted[0].id);
+    }
     setAuditEvents(ae);
-    if (sorted.length > 0) setSelectedId(sorted[0].id);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(datasetMode); }, [datasetMode]);
+
+  const handleModeChange = (newMode: DatasetMode) => {
+    setDatasetMode(newMode);
+  };
 
   const selectedSubmission = submissions.find((s) => s.id === selectedId) ?? null;
   // Top 5 highest-priority cases for the overview list
@@ -200,35 +218,66 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
               Control Room Overview
             </h1>
             <p className="text-xs text-slate-500 mt-0.5 max-w-xl">
-              Workload snapshot for the current regulatory compliance cycle.{' '}
+              {datasetMode === 'real'
+                ? 'Authentic Public Reference Directory & statutory compliance verification layer.'
+                : 'Workload snapshot for the simulated regulatory compliance cycle.'}{' '}
               <span className="font-medium text-slate-600">
-                Escalated cases and critical findings surface automatically.
+                {datasetMode === 'real'
+                  ? 'All institutions verified against official AICTE 2024–2025 public registries.'
+                  : 'Escalated cases and critical findings surface automatically.'}
               </span>
             </p>
           </div>
 
-          {/* Demo mode + count badge */}
+          {/* Mode label + count badge */}
           <div className="flex items-center gap-2 shrink-0">
-            <div
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: '#FFF5F7', border: '1px solid #ECD9E2',
-                borderRadius: 20, padding: '4px 9px',
-              }}
-            >
-              <FlaskConical size={11} className="text-[#C14E83]" />
-              <span className="text-[11px] font-semibold text-[#8B315B]">
-                {DEMO_TIMELINE_LABEL}
-              </span>
-            </div>
+            {datasetMode === 'synthetic' ? (
+              <div
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: '#FFF5F7', border: '1px solid #ECD9E2',
+                  borderRadius: 20, padding: '4px 9px',
+                }}
+              >
+                <FlaskConical size={11} className="text-[#C14E83]" />
+                <span className="text-[11px] font-semibold text-[#8B315B]">
+                  {DEMO_TIMELINE_LABEL}
+                </span>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: '#F0FDF4', border: '1px solid #BBF7D0',
+                  borderRadius: 20, padding: '4px 9px',
+                }}
+              >
+                <ShieldCheck size={11} className="text-emerald-600" />
+                <span className="text-[11px] font-semibold text-emerald-800">
+                  AICTE Public Directory 2024–2025
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-2 bg-[#251421] text-white rounded-xl px-3.5 py-2 shadow-sm border border-[#351D31]">
               <FileStack size={14} className="text-[#C14E83]" />
               <span className="text-xs font-semibold">
-                {loading ? '…' : metrics?.totalSubmissions} applications
+                {loading
+                  ? '…'
+                  : datasetMode === 'real'
+                  ? '0 applications · ' + referenceCount + ' reference institutes'
+                  : `${metrics?.totalSubmissions} applications`}
               </span>
             </div>
           </div>
         </div>
+
+        {/* ── Dataset Mode Toggle (Real Data / Synthetic Data) ─────────────── */}
+        <DatasetModeToggle
+          mode={datasetMode}
+          onChange={handleModeChange}
+          referenceCount={referenceCount}
+          syntheticCount={30}
+        />
 
         {/* ── Metrics row ────────────────────────────────────────────────── */}
         {loading ? (
@@ -238,143 +287,152 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
             <MetricCard
               label="Pending Review"
               value={metrics.pendingReview}
-              subtext="Awaiting assignment"
+              subtext={datasetMode === 'real' ? 'No authentic submissions' : 'Awaiting assignment'}
               accentColor="text-indigo-700"
               icon={<Clock size={15} />}
-              trend="up"
-              trendLabel="Prototype dataset"
+              trend={datasetMode === 'real' ? 'neutral' : 'up'}
+              trendLabel={datasetMode === 'real' ? 'Authentic isolation' : 'Prototype dataset'}
             />
             <MetricCard
               label="Escalated"
               value={metrics.escalated}
-              subtext="Needs senior attention"
+              subtext={datasetMode === 'real' ? 'No authentic submissions' : 'Needs senior attention'}
               accentColor="text-amber-600"
               icon={<AlertTriangle size={15} />}
-              trend="up"
-              trendLabel="Prototype dataset"
+              trend={datasetMode === 'real' ? 'neutral' : 'up'}
+              trendLabel={datasetMode === 'real' ? 'Authentic isolation' : 'Prototype dataset'}
             />
             <MetricCard
               label="Approved This Month"
               value={metrics.approvedThisMonth}
-              subtext="Applications cleared"
+              subtext={datasetMode === 'real' ? 'No authentic submissions' : 'Applications cleared'}
               accentColor="text-emerald-600"
               icon={<CheckCircle2 size={15} />}
               trend="neutral"
-              trendLabel="Prototype dataset"
+              trendLabel={datasetMode === 'real' ? 'Authentic isolation' : 'Prototype dataset'}
             />
             <MetricCard
               label="Critical Findings"
               value={metrics.criticalFindings}
-              subtext={`Avg. ${metrics.avgResolutionDays}d resolution`}
+              subtext={datasetMode === 'real' ? 'No authentic submissions' : `Avg. ${metrics.avgResolutionDays}d resolution`}
               accentColor="text-red-700"
               icon={<XCircle size={15} />}
-              trend="down"
-              trendLabel="Prototype dataset"
-              gradient
+              trend={datasetMode === 'real' ? 'neutral' : 'down'}
+              trendLabel={datasetMode === 'real' ? 'Authentic isolation' : 'Prototype dataset'}
+              gradient={datasetMode === 'synthetic'}
             />
           </div>
         ) : null}
 
-        {/* ── Top priority cases + compact summary panel ─────────────────── */}
-        <div className="flex gap-4 items-start">
-          {/* Left: top-5 cases list */}
-          <div className="flex-1 min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div
-              style={{
-                padding: '11px 14px',
-                borderBottom: '1px solid #f1f5f9',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              }}
-            >
-              <div>
-                <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                  <AlertTriangle size={13} className="text-red-500" />
-                  Highest-Priority Cases
-                  <HelpTooltip
-                    term="Priority"
-                    explanation="A guide to which application may need attention sooner based on risk, severity, and timeline. Not a final compliance decision."
-                    align="left"
-                  />
-                </h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  Top {topCases.length} by priority score · click to inspect · synthetic reference data
-                </p>
+        {/* ── Mode-conditioned Content View ──────────────────────────────── */}
+        {datasetMode === 'real' ? (
+          <PublicReferenceDirectoryView />
+        ) : (
+          <>
+            {/* ── Top priority cases + compact summary panel ─────────────────── */}
+            <div className="flex gap-4 items-start">
+              {/* Left: top-5 cases list */}
+              <div className="flex-1 min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div
+                  style={{
+                    padding: '11px 14px',
+                    borderBottom: '1px solid #f1f5f9',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <AlertTriangle size={13} className="text-red-500" />
+                      Highest-Priority Cases
+                      <HelpTooltip
+                        term="Priority"
+                        explanation="A guide to which application may need attention sooner based on risk, severity, and timeline. Not a final compliance decision."
+                        align="left"
+                      />
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Top {topCases.length} by priority score · click to inspect · synthetic demo data
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate?.('pipeline')}
+                    className="text-xs text-[#C14E83] hover:text-[#AA4777] font-semibold flex items-center gap-1 transition-colors"
+                    title="Go to Submission Pipeline for the full list"
+                  >
+                    <Building2 size={12} />
+                    Full list in Pipeline →
+                  </button>
+                </div>
+
+                {loading ? (
+                  <div className="p-3 flex flex-col gap-2">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="animate-pulse h-10 bg-slate-100 rounded-lg" />
+                    ))}
+                  </div>
+                ) : topCases.length === 0 ? (
+                  <div className="p-6 text-center text-slate-400 text-xs">
+                    No submissions found in demo data.
+                  </div>
+                ) : (
+                  topCases.map((sub, idx) => (
+                    <PriorityRow
+                      key={sub.id}
+                      sub={sub}
+                      rank={idx + 1}
+                      onSelect={setSelectedId}
+                      isSelected={sub.id === selectedId}
+                      onOpenReviewWorkspace={onOpenReviewWorkspace}
+                    />
+                  ))
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('pipeline')}
-                className="text-xs text-[#C14E83] hover:text-[#AA4777] font-semibold flex items-center gap-1 transition-colors"
-                title="Go to Submission Pipeline for the full list"
-              >
-                <Building2 size={12} />
-                Full list in Pipeline →
-              </button>
+
+              {/* Right: compact selected-case summary panel */}
+              <div className="shrink-0" style={{ width: 360 }}>
+                {selectedSubmission ? (
+                  <CaseSummaryPanel
+                    submission={selectedSubmission}
+                    onOpenReviewWorkspace={onOpenReviewWorkspace}
+                  />
+                ) : (
+                  <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400 text-xs">
+                    Select a case above to view details
+                  </div>
+                )}
+              </div>
             </div>
 
-            {loading ? (
-              <div className="p-3 flex flex-col gap-2">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="animate-pulse h-10 bg-slate-100 rounded-lg" />
-                ))}
+            {/* ── Bottom row: pipeline snapshot + audit feed ─────────────────── */}
+            <div className="grid grid-cols-5 gap-4">
+              <div className="col-span-2">
+                <PipelineProgress stages={pipelineStages} total={totalPipeline} />
               </div>
-            ) : topCases.length === 0 ? (
-              <div className="p-6 text-center text-slate-400 text-xs">
-                No submissions found in demo data.
-              </div>
-            ) : (
-              topCases.map((sub, idx) => (
-                <PriorityRow
-                  key={sub.id}
-                  sub={sub}
-                  rank={idx + 1}
-                  onSelect={setSelectedId}
-                  isSelected={sub.id === selectedId}
-                  onOpenReviewWorkspace={onOpenReviewWorkspace}
+              <div className="col-span-3">
+                <AuditEventFeed
+                  events={auditEvents}
+                  maxEvents={4}
+                  onViewAll={() => onNavigate?.('audit-events')}
+                  helpTooltip={
+                    <HelpTooltip
+                      term="Audit events"
+                      explanation="A history of actions taken on applications — submissions received, reviews started, findings flagged, and decisions made."
+                      align="right"
+                    />
+                  }
                 />
-              ))
-            )}
-          </div>
-
-          {/* Right: compact selected-case summary panel */}
-          <div className="shrink-0" style={{ width: 360 }}>
-            {selectedSubmission ? (
-              <CaseSummaryPanel
-                submission={selectedSubmission}
-                onOpenReviewWorkspace={onOpenReviewWorkspace}
-              />
-            ) : (
-              <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400 text-xs">
-                Select a case above to view details
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Bottom row: pipeline snapshot + audit feed ─────────────────── */}
-        <div className="grid grid-cols-5 gap-4">
-          <div className="col-span-2">
-            <PipelineProgress stages={pipelineStages} total={totalPipeline} />
-          </div>
-          <div className="col-span-3">
-            <AuditEventFeed
-              events={auditEvents}
-              maxEvents={4}
-              onViewAll={() => onNavigate?.('audit-events')}
-              helpTooltip={
-                <HelpTooltip
-                  term="Audit events"
-                  explanation="A history of actions taken on applications — submissions received, reviews started, findings flagged, and decisions made."
-                  align="right"
-                />
-              }
-            />
-          </div>
-        </div>
+            </div>
+          </>
+        )}
 
         {/* ── Footer ─────────────────────────────────────────────────────── */}
         <div className="text-center pb-4">
           <span className="text-[11px] text-slate-400">
-            All application data is synthetic and for demonstration purposes only. ·{' '}
+            {datasetMode === 'real'
+              ? 'Verified Public Reference Directory · Source: AICTE Approval Process Dashboard & AISHE Directory 2024–2025 · '
+              : 'All application data is synthetic and for demonstration purposes only. · '}
             <span className="text-[#C14E83] font-medium">AICTE VerifyAI · SIH Prototype</span>
           </span>
         </div>
@@ -382,3 +440,4 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
     </div>
   );
 };
+

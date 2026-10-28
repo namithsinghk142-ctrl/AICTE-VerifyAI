@@ -19,6 +19,17 @@ class TestCORSConfiguration:
         assert resp.headers.get("access-control-allow-origin") == "http://localhost:5173"
         assert resp.headers.get("access-control-allow-credentials") == "true"
 
+    def test_cors_preflight_for_vite_frontend_port_5174(self, client: TestClient) -> None:
+        headers = {
+            "Origin": "http://localhost:5174",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type",
+        }
+        resp = client.options("/api/applications", headers=headers)
+        assert resp.status_code == 200
+        assert resp.headers.get("access-control-allow-origin") == "http://localhost:5174"
+        assert resp.headers.get("access-control-allow-credentials") == "true"
+
     def test_cors_preflight_for_react_frontend(self, client: TestClient) -> None:
         headers = {
             "Origin": "http://localhost:3000",

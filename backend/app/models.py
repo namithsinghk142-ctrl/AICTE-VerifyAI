@@ -6,7 +6,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, Enum as SAEnum, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -80,6 +80,14 @@ class FindingReviewStatus(str, enum.Enum):
     ESCALATED = "escalated"
 
 
+class DataClassification(str, enum.Enum):
+    """Classification of data provenance in AICTE VerifyAI."""
+
+    SYNTHETIC_DEMO = "SYNTHETIC_DEMO"
+    PUBLIC_REFERENCE = "PUBLIC_REFERENCE"
+    AUTHENTIC_APPLICATION = "AUTHENTIC_APPLICATION"
+
+
 # ---------------------------------------------------------------------------
 # Models
 # ---------------------------------------------------------------------------
@@ -98,6 +106,14 @@ class Application(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    data_classification: Mapped[str] = mapped_column(
+        String(50), default=DataClassification.SYNTHETIC_DEMO.value, nullable=False
+    )
+    is_synthetic_demo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    source_name: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
+    source_record_id: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
+    import_batch_id: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
 
     review_status: Mapped[str | None] = mapped_column(String(50), nullable=True, default=None)
     review_notes: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
@@ -277,4 +293,84 @@ class ComplianceEvaluation(Base):
 
     # Relationships
     application: Mapped["Application"] = relationship(back_populates="compliance_evaluations")
+
+
+class Reviewer(Base):
+    """Stores reviewer credentials and profile for authentication."""
+
+    __tablename__ = "reviewers"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(100), nullable=False, default="Compliance Reviewer")
+    avatar_initials: Mapped[str] = mapped_column(String(10), nullable=False, default="RO")
+    assigned_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    resolved_this_month: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+ReviewerModel = Reviewer
+
+
+class PublicReferenceInstitution(Base):
+    """Verified technical institution record from official public registry (e.g. AICTE / AISHE).
+
+    Contains strictly factual directory data. No synthetic findings, risk scores,
+    or invented discrepancies are ever attached.
+    """
+
+    __tablename__ = "public_reference_institutions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    aicte_permanent_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    institution_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    state: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    city_or_district: Mapped[str] = mapped_column(String(100), nullable=False)
+    institution_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    aishe_code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    sponsoring_body: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    approval_status: Mapped[str] = mapped_column(String(100), default="Approved (Public Reference)", nullable=False)
+    academic_year: Mapped[str] = mapped_column(String(20), default="2024–2025", nullable=False)
+    source_publisher: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_url: Mapped[str] = mapped_column(String(500), nullable=False)
+    institution_website_url: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None)
+    aicte_portal_url: Mapped[str] = mapped_column(
+        String(500),
+        default="https://facilities.aicte-india.org/dashboard/pages/angulardashboard.php#!/approved",
+        nullable=False,
+    )
+    aishe_portal_url: Mapped[str | None] = mapped_column(
+        String(500),
+        default="https://dashboard.aishe.gov.in/hedirectory/",
+        nullable=True,
+    )
+    retrieval_date: Mapped[str] = mapped_column(String(30), nullable=False)
+    dataset_version: Mapped[str] = mapped_column(String(50), default="AY-2024-2025-V1", nullable=False)
+    import_batch_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    validation_status: Mapped[str] = mapped_column(String(50), default="VALIDATED", nullable=False)
+    content_checksum: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
+
+
+class CrossDocComparison(Base):
+    """Stores cross-document reconciliation and consistency check results."""
+
+    __tablename__ = "cross_doc_comparisons"
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True, default=_new_uuid)
+    submission_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    field_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    has_discrepancy: Mapped[bool] = mapped_column(Boolean, default=False)
+    status_text: Mapped[str] = mapped_column(String(255), nullable=False)
+    entries_json: Mapped[str] = mapped_column(Text, nullable=False)
+    human_review_recommendation: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+CrossDocComparisonModel = CrossDocComparison
+
 

@@ -78,7 +78,11 @@ def ensure_schema_compatibility(target_engine=None) -> None:
                     default_clause = ""
                     if column.default is not None:
                         arg = column.default.arg
-                        if isinstance(arg, str):
+                        if hasattr(arg, "value"):
+                            arg = arg.value
+                        if isinstance(arg, bool):
+                            default_clause = f" DEFAULT {1 if arg else 0}"
+                        elif isinstance(arg, str):
                             default_clause = f" DEFAULT '{arg}'"
                         elif isinstance(arg, (int, float)):
                             default_clause = f" DEFAULT {arg}"

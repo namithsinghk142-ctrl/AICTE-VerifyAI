@@ -23,19 +23,20 @@ from .auth import hash_password
 
 def seed_reviewer_accounts(db: Session) -> None:
     """
-    Ensure the demo reviewer account exists with a properly hashed password.
-    The demo password is read from the VERIFYAI_DEMO_PASSWORD env var.
-    If the var is not set, a safe development default is used.
-    NEVER hardcode a production password here.
+    Ensure demo reviewer accounts exist with properly hashed passwords.
+    Preserves all existing reviewer accounts without overwriting or deleting.
     """
-    demo_password = os.environ.get("VERIFYAI_DEMO_PASSWORD", "VerifyAI@Adhav123!")
-    demo_email = os.environ.get("VERIFYAI_DEMO_EMAIL", "adhav.sri123@gmail.com")
+    priya_password = os.environ.get("VERIFYAI_DEMO_PASSWORD", "VerifyAI@Demo2026")
+    priya_email = os.environ.get("VERIFYAI_DEMO_EMAIL", "priya.venkataraman@aicte-verifyai.demo").strip().lower()
+
+    adhav_password = os.environ.get("VERIFYAI_ADHAV_PASSWORD", "VerifyAI@Adhav123!")
+    adhav_email = os.environ.get("VERIFYAI_ADHAV_EMAIL", "adhav.sri123@gmail.com").strip().lower()
 
     reviewers = [
         {
             "id": "rev-001",
-            "email": demo_email.strip().lower(),
-            "password_hash": hash_password(demo_password),
+            "email": priya_email,
+            "password_hash": hash_password(priya_password),
             "name": "Priya Venkataraman",
             "role": "Senior Compliance Reviewer",
             "avatar_initials": "PV",
@@ -44,26 +45,33 @@ def seed_reviewer_accounts(db: Session) -> None:
             "is_active": True,
             "created_at": "2026-01-15T09:00:00Z",
         },
+        {
+            "id": "rev-002",
+            "email": adhav_email,
+            "password_hash": hash_password(adhav_password),
+            "name": "Adhavan S",
+            "role": "Senior Compliance Reviewer",
+            "avatar_initials": "AS",
+            "assigned_count": 8,
+            "resolved_this_month": 22,
+            "is_active": True,
+            "created_at": "2026-01-15T09:00:00Z",
+        },
     ]
 
     for r in reviewers:
-        existing = db.query(ReviewerModel).filter(ReviewerModel.id == r["id"]).first()
+        existing = db.query(ReviewerModel).filter(ReviewerModel.email == r["email"]).first()
         if existing is None:
+            # Check by ID to avoid ID collision
+            existing_by_id = db.query(ReviewerModel).filter(ReviewerModel.id == r["id"]).first()
+            if existing_by_id is not None:
+                import uuid
+                r["id"] = f"rev-{uuid.uuid4().hex[:6]}"
             db.add(ReviewerModel(**r))
             print(f"[VerifyAI Auth] Created reviewer account: {r['email']}")
         else:
-            # Re-hash password and update email if changed
-            existing.email = r["email"]
-            existing.password_hash = r["password_hash"]
-            print(f"[VerifyAI Auth] Refreshed credentials for: {r['email']}")
-
-    # Clean up any stale reviewer records that may have the old demo email
-    stale = db.query(ReviewerModel).filter(
-        ReviewerModel.email == "priya.venkataraman@aicte-verifyai.demo"
-    ).all()
-    for s in stale:
-        if s.id != "rev-001":
-            db.delete(s)
+            # Account already exists: do NOT overwrite password or reset any fields
+            print(f"[VerifyAI Auth] Preserved existing account for: {r['email']}")
 
     db.commit()
 

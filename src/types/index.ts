@@ -90,8 +90,11 @@ export interface CrossDocComparisonEntry {
   sourcePage: number;
   isMismatched?: boolean;
   confidenceScore: number;
-  /** MATCH | MISMATCH | MISSING | UNABLE_TO_COMPARE */
+  /** MATCH | MISMATCH | MISSING | UNABLE_TO_COMPARE | NEEDS_REVIEW */
   verdict?: string;
+  textSnippet?: string | null;
+  normalizedValue?: string;
+  reason?: string;
 }
 
 export interface CrossDocComparisonField {
@@ -215,15 +218,25 @@ export interface PublicReferenceRecord {
   state: string;
   city: string;
   aictePermanentId: string;
-  aisheCode: string;
+  aisheCode?: string;
   institutionType: string;
   approvalStatus: string;
   academicYear: string; // Source publication / academic approval year
   retrievalDate: string; // Exact date retrieved from official registry
-  accessDate: string; // Backward compatibility alias for retrieval date
+  accessDate?: string; // Backward compatibility alias for retrieval date
   approvedProgramCount?: number | string;
   verifiedProgramNote?: string;
-  sourceRef: string;
+  sourceRef?: string;
   sourceUrl: string;
+  institutionWebsiteUrl?: string;
+  aictePortalUrl?: string;
+  aishePortalUrl?: string;
+  sponsoringBody?: string;
+  sourcePublisher?: string;
+  contentChecksum?: string;
+  validationStatus?: string;
 }
+
+export type DatasetMode = 'synthetic' | 'real';
+
 

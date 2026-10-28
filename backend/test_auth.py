@@ -1,4 +1,9 @@
 import os
+import sys
+
+# Ensure backend package can be imported whether run from root or backend dir
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import pytest
 from fastapi.testclient import TestClient
 from backend.main import app
@@ -26,18 +31,37 @@ def test_token_generation_and_verification():
     tampered = token[:-4] + "abcd"
     assert verify_token(tampered) is None
 
-def test_auth_login_success():
+def test_auth_login_adhav_success():
     # Ensure seeded
     db = next(get_db())
     seed_reviewer_accounts(db)
     db.close()
 
-    demo_email = "adhav.sri123@gmail.com"
-    demo_password = os.environ.get("VERIFYAI_DEMO_PASSWORD", "VerifyAI@Adhav123!")
+    adhav_email = "adhav.sri123@gmail.com"
+    adhav_password = os.environ.get("VERIFYAI_ADHAV_PASSWORD", "VerifyAI@Adhav123!")
 
     response = client.post(
         "/api/v1/auth/login",
-        json={"email": demo_email, "password": demo_password},
+        json={"email": adhav_email, "password": adhav_password},
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["name"] == "Adhavan S"
+    assert data["role"] == "Senior Compliance Reviewer"
+    assert "verifyai_token" in response.cookies
+
+
+def test_existing_reviewer_priya_intact():
+    db = next(get_db())
+    seed_reviewer_accounts(db)
+    db.close()
+
+    priya_email = "priya.venkataraman@aicte-verifyai.demo"
+    priya_password = os.environ.get("VERIFYAI_DEMO_PASSWORD", "VerifyAI@Demo2026")
+
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": priya_email, "password": priya_password},
     )
     assert response.status_code == 200, response.text
     data = response.json()
@@ -45,37 +69,16 @@ def test_auth_login_success():
     assert data["role"] == "Senior Compliance Reviewer"
     assert "verifyai_token" in response.cookies
 
+
 def test_auth_login_invalid_password():
-    demo_email = "adhav.sri123@gmail.com"
+    adhav_email = "adhav.sri123@gmail.com"
     response = client.post(
         "/api/v1/auth/login",
-        json={"email": demo_email, "password": "WrongPassword123"},
+        json={"email": adhav_email, "password": "WrongPassword123"},
     )
     assert response.status_code == 401
     assert "verifyai_token" not in response.cookies
 
-def test_old_credentials_no_longer_work():
-    # Old email + old password must fail
-    resp1 = client.post(
-        "/api/v1/auth/login",
-        json={"email": "priya.venkataraman@aicte-verifyai.demo", "password": "VerifyAI@Demo2026"},
-    )
-    assert resp1.status_code == 401
-    assert "verifyai_token" not in resp1.cookies
-
-    # Old email + new password must fail
-    resp2 = client.post(
-        "/api/v1/auth/login",
-        json={"email": "priya.venkataraman@aicte-verifyai.demo", "password": "VerifyAI@Adhav123!"},
-    )
-    assert resp2.status_code == 401
-
-    # New email + old password must fail
-    resp3 = client.post(
-        "/api/v1/auth/login",
-        json={"email": "adhav.sri123@gmail.com", "password": "VerifyAI@Demo2026"},
-    )
-    assert resp3.status_code == 401
 
 def test_auth_login_unknown_user():
     response = client.post(
@@ -84,24 +87,25 @@ def test_auth_login_unknown_user():
     )
     assert response.status_code == 401
 
+
 def test_auth_me_authenticated_and_unauthenticated():
     # Fresh unauthenticated client -> 401
     fresh_client = TestClient(app)
     unauth_resp = fresh_client.get("/api/v1/auth/me")
     assert unauth_resp.status_code == 401
 
-    # Login and verify /auth/me returns 200
-    demo_email = "adhav.sri123@gmail.com"
-    demo_password = os.environ.get("VERIFYAI_DEMO_PASSWORD", "VerifyAI@Adhav123!")
+    # Login with Adhav account and verify /auth/me returns 200
+    adhav_email = "adhav.sri123@gmail.com"
+    adhav_password = os.environ.get("VERIFYAI_ADHAV_PASSWORD", "VerifyAI@Adhav123!")
     login_resp = fresh_client.post(
         "/api/v1/auth/login",
-        json={"email": demo_email, "password": demo_password},
+        json={"email": adhav_email, "password": adhav_password},
     )
     assert login_resp.status_code == 200
 
     me_resp = fresh_client.get("/api/v1/auth/me")
     assert me_resp.status_code == 200
-    assert me_resp.json()["name"] == "Priya Venkataraman"
+    assert me_resp.json()["name"] == "Adhavan S"
 
     # Logout and verify /auth/me returns 401 again
     logout_resp = fresh_client.post("/api/v1/auth/logout")
@@ -109,12 +113,14 @@ def test_auth_me_authenticated_and_unauthenticated():
     post_logout = fresh_client.get("/api/v1/auth/me")
     assert post_logout.status_code == 401
 
+
 if __name__ == "__main__":
     test_password_hashing()
     test_token_generation_and_verification()
-    test_auth_login_success()
+    test_auth_login_adhav_success()
+    test_existing_reviewer_priya_intact()
     test_auth_login_invalid_password()
-    test_old_credentials_no_longer_work()
     test_auth_login_unknown_user()
     test_auth_me_authenticated_and_unauthenticated()
     print("ALL AUTH TESTS PASSED PERFECTLY!")
+

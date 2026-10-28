@@ -22,7 +22,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:////tmp/aicte-verifyai.db" if os.getenv("VERCEL") else "sqlite:///./verifyai.db"
 
     # CORS — comma-separated list of allowed origins
-    cors_origins: str = "http://localhost:3000,http://localhost:5173"
+    cors_origins: str = (
+        "http://localhost:3000,http://localhost:5173,http://localhost:5174,"
+        "http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174"
+    )
 
     # Document storage & upload limits
     storage_dir: str = "/tmp/aicte-verifyai-storage" if os.getenv("VERCEL") else "./storage"

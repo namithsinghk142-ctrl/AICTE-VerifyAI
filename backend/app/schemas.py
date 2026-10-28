@@ -347,9 +347,16 @@ class ComplianceReportResponseSchema(BaseModel):
 class HealthResponse(BaseModel):
     """Response for the health-check endpoint."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     status: str = "ok"
     version: str
     environment: str
+    service: str = "AICTE VerifyAI API"
+    database: str = "SQLite (verifyai.db)"
+    ocr_engine_available: bool = Field(False, alias="ocrEngineAvailable")
+    ocr_details: str = Field("Native extraction active.", alias="ocrDetails")
+    pdf_engine: str = Field("PyMuPDF (fitz)", alias="pdfEngine")
 
 
 # ---------------------------------------------------------------------------
@@ -477,3 +484,103 @@ class CombinedFindingsResponse(BaseModel):
         "Notice: Automated verification assistance findings are advisory for regulatory officers. "
         "Adverse decisions require human officer determination and cannot be automated."
     )
+
+
+# ---------------------------------------------------------------------------
+# Authentication schemas
+# ---------------------------------------------------------------------------
+
+class LoginPayload(BaseModel):
+    """Payload for reviewer login."""
+
+    email: str = Field(..., examples=["adhav.sri123@gmail.com"])
+    password: str = Field(..., min_length=1)
+
+
+class ReviewerProfileResponse(BaseModel):
+    """Reviewer profile matching frontend ReviewerProfile interface."""
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: str
+    name: str
+    role: str
+    avatar_initials: str = Field(..., alias="avatarInitials")
+    assigned_count: int = Field(0, alias="assignedCount")
+    resolved_this_month: int = Field(0, alias="resolvedThisMonth")
+
+
+# ---------------------------------------------------------------------------
+# Public Reference Institution & Provenance schemas
+# ---------------------------------------------------------------------------
+
+class PublicReferenceInstitutionSchema(BaseModel):
+    """Factual public reference record from official AICTE/AISHE directories."""
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: str
+    aicte_permanent_id: str = Field(..., alias="aictePermanentId")
+    institution_name: str = Field(..., alias="institutionName")
+    state: str
+    city_or_district: str = Field(..., alias="city")
+    institution_type: str = Field(..., alias="institutionType")
+    aishe_code: str | None = Field(None, alias="aisheCode")
+    sponsoring_body: str | None = Field(None, alias="sponsoringBody")
+    approval_status: str = Field("Approved (Public Reference)", alias="approvalStatus")
+    academic_year: str = Field("2024–2025", alias="academicYear")
+    source_publisher: str = Field(..., alias="sourcePublisher")
+    source_url: str = Field(..., alias="sourceUrl")
+    institution_website_url: str | None = Field(None, alias="institutionWebsiteUrl")
+    aicte_portal_url: str = Field(
+        "https://facilities.aicte-india.org/dashboard/pages/angulardashboard.php#!/approved",
+        alias="aictePortalUrl",
+    )
+    aishe_portal_url: str | None = Field(
+        "https://dashboard.aishe.gov.in/hedirectory/",
+        alias="aishePortalUrl",
+    )
+    retrieval_date: str = Field(..., alias="retrievalDate")
+    dataset_version: str = Field("AY-2024-2025-V1", alias="datasetVersion")
+    validation_status: str = Field("VALIDATED", alias="validationStatus")
+    content_checksum: str = Field(..., alias="contentChecksum")
+
+
+class PaginatedPublicReferenceResponse(BaseModel):
+    """Paginated list of verified public reference institutions."""
+
+    items: list[PublicReferenceInstitutionSchema]
+    total: int
+    page: int
+    page_size: int = Field(..., alias="pageSize")
+    total_pages: int = Field(..., alias="totalPages")
+
+
+class DatasetSummaryResponse(BaseModel):
+    """Provenance and data quality summary for VerifyAI data layers."""
+
+    active_mode: str = Field("synthetic", alias="activeMode")
+    synthetic_count: int = Field(30, alias="syntheticCount")
+    public_reference_count: int = Field(0, alias="publicReferenceCount")
+    authentic_application_count: int = Field(0, alias="authenticApplicationCount")
+    sources: list[dict] = Field(default_factory=list)
+    last_import_timestamp: str | None = Field(None, alias="lastImportTimestamp")
+    data_quality: dict = Field(default_factory=dict, alias="dataQuality")
+    statutory_citations: list[dict] = Field(default_factory=list, alias="statutoryCitations")
+
+
+class ImportSummaryResponse(BaseModel):
+    """Result of running the verified dataset import pipeline."""
+
+    status: str
+    dry_run: bool = Field(False, alias="dryRun")
+    records_discovered: int = Field(0, alias="recordsDiscovered")
+    records_accepted: int = Field(0, alias="recordsAccepted")
+    records_updated: int = Field(0, alias="recordsUpdated")
+    records_skipped: int = Field(0, alias="recordsSkipped")
+    records_rejected: int = Field(0, alias="recordsRejected")
+    rejection_reasons: list[dict] = Field(default_factory=list, alias="rejectionReasons")
+    batch_checksum: str = Field("", alias="batchChecksum")
+    import_batch_id: str = Field("", alias="importBatchId")
+    message: str = ""
+

@@ -19,7 +19,7 @@ interface CrossDocComparisonViewProps {
   isRefreshing?: boolean;
 }
 
-type Verdict = 'MATCH' | 'MISMATCH' | 'MISSING' | 'UNABLE_TO_COMPARE';
+type Verdict = 'MATCH' | 'MISMATCH' | 'MISSING' | 'UNABLE_TO_COMPARE' | 'NEEDS_REVIEW';
 
 /** Derive the overall verdict for a field from the first entry that has one, or from hasDiscrepancy. */
 function deriveVerdict(field: CrossDocComparisonField): Verdict {
@@ -77,6 +77,14 @@ const VERDICT_CONFIG: Record<
     label: 'UNABLE TO COMPARE',
     icon: <HelpCircle size={16} className="text-blue-500 shrink-0" />,
   },
+  NEEDS_REVIEW: {
+    bg: '#FAF5FF',
+    border: '#E9D5FF',
+    text: '#581C87',
+    label: 'NEEDS REVIEW',
+    icon: <AlertTriangle size={16} className="text-purple-600 shrink-0" />,
+    tabDot: 'bg-purple-600',
+  },
 };
 
 const ENTRY_VERDICT_BADGE: Record<string, string> = {
@@ -84,6 +92,7 @@ const ENTRY_VERDICT_BADGE: Record<string, string> = {
   MISMATCH: 'bg-amber-100 text-amber-800 border border-amber-300',
   MISSING: 'bg-[#FFF5F7] text-[#7F1D4E] border border-[#ECD9E2]',
   UNABLE_TO_COMPARE: 'bg-blue-50 text-blue-800 border border-blue-200',
+  NEEDS_REVIEW: 'bg-purple-100 text-purple-800 border border-purple-200',
 };
 
 const ENTRY_VALUE_STYLE: Record<string, string> = {
@@ -91,6 +100,7 @@ const ENTRY_VALUE_STYLE: Record<string, string> = {
   MISMATCH: 'bg-amber-100 text-amber-900 font-bold border border-amber-300',
   MISSING: 'bg-[#FFF5F7] text-[#7F1D4E] font-semibold border border-[#ECD9E2] italic',
   UNABLE_TO_COMPARE: 'bg-blue-50 text-blue-900 font-medium border border-blue-200',
+  NEEDS_REVIEW: 'bg-purple-50 text-purple-900 font-semibold border border-purple-200',
 };
 
 export const CrossDocComparisonView: React.FC<CrossDocComparisonViewProps> = ({
@@ -236,6 +246,8 @@ export const CrossDocComparisonView: React.FC<CrossDocComparisonViewProps> = ({
                 <AlertTriangle size={13} className="text-amber-600" />
               ) : v === 'MISSING' ? (
                 <XCircle size={13} className="text-[#C14E83]" />
+              ) : v === 'NEEDS_REVIEW' ? (
+                <AlertTriangle size={13} className="text-purple-600" />
               ) : (
                 <HelpCircle size={13} className="text-blue-500" />
               )}
@@ -320,7 +332,7 @@ export const CrossDocComparisonView: React.FC<CrossDocComparisonViewProps> = ({
                 const entryVerdict: string = entry.verdict ?? (entry.isMismatched ? 'MISMATCH' : 'MATCH');
                 const badgeCls = ENTRY_VERDICT_BADGE[entryVerdict] ?? ENTRY_VERDICT_BADGE.MATCH;
                 const valueCls = ENTRY_VALUE_STYLE[entryVerdict] ?? ENTRY_VALUE_STYLE.MATCH;
-                const confidencePct = Math.round((entry.confidenceScore ?? 0) * 100);
+                const confidencePct = Math.min(100, Math.round(entry.confidenceScore > 1 ? entry.confidenceScore : (entry.confidenceScore ?? 0) * 100));
                 return (
                   <tr
                     key={idx}
@@ -331,6 +343,8 @@ export const CrossDocComparisonView: React.FC<CrossDocComparisonViewProps> = ({
                         ? 'bg-[#FFF5F7]/40'
                         : entryVerdict === 'UNABLE_TO_COMPARE'
                         ? 'bg-blue-50/30'
+                        : entryVerdict === 'NEEDS_REVIEW'
+                        ? 'bg-purple-50/30'
                         : 'bg-white hover:bg-slate-50/60'
                     }
                   >
@@ -348,6 +362,8 @@ export const CrossDocComparisonView: React.FC<CrossDocComparisonViewProps> = ({
                               ? 'text-amber-600'
                               : entryVerdict === 'MISSING'
                               ? 'text-[#C14E83]'
+                              : entryVerdict === 'NEEDS_REVIEW'
+                              ? 'text-purple-600'
                               : 'text-[#C14E83]'
                           }
                         />
@@ -363,6 +379,11 @@ export const CrossDocComparisonView: React.FC<CrossDocComparisonViewProps> = ({
                       >
                         {entry.extractedValue}
                       </span>
+                      {entry.textSnippet && (
+                        <p className="text-[10px] text-slate-500 mt-1 italic font-sans max-w-md line-clamp-2" title={entry.textSnippet}>
+                          Context: "{entry.textSnippet}"
+                        </p>
+                      )}
                     </td>
                     <td className="px-3 py-3.5 text-center">
                       {entry.sourcePage > 0 && confidencePct > 0 ? (

@@ -11,16 +11,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.database import Base, engine, ensure_schema_compatibility
+from app.database import Base, SessionLocal, engine, ensure_schema_compatibility
 from app.routes import (
     applications,
     audit,
+    auth,
     compliance,
     dashboard,
     documents,
     health,
+    reference_data,
     reviewer,
 )
+from app.services.auth import seed_reviewer_accounts
+from app.services.dataset_importer import import_verified_dataset
 
 
 @asynccontextmanager
@@ -34,6 +38,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     import app.models as _models  # noqa: F841
     Base.metadata.create_all(bind=engine)
     ensure_schema_compatibility(engine)
+
+    # Ensure baseline and demo reviewer accounts are safely seeded without overwriting
+    with SessionLocal() as db_session:
+        seed_reviewer_accounts(db_session)
+        from app.models import PublicReferenceInstitution
+        if db_session.query(PublicReferenceInstitution).count() == 0:
+            import_verified_dataset(db_session, dry_run=False)
+
     yield
     # Shutdown: cleanup if needed
 
@@ -58,9 +70,21 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
     # CORS
     # ------------------------------------------------------------------
+    allowed_origins = list(settings.cors_origin_list)
+    for dev_origin in (
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ):
+        if dev_origin not in allowed_origins:
+            allowed_origins.append(dev_origin)
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origin_list,
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -77,16 +101,28 @@ def create_app() -> FastAPI:
         )
 
     # ------------------------------------------------------------------
-    # Routers — all under the /api prefix
+    # Routers — health checks and domain APIs
     # ------------------------------------------------------------------
-    api_prefix = "/api"
-    app.include_router(health.router, prefix=api_prefix)
-    app.include_router(applications.router, prefix=api_prefix)
-    app.include_router(documents.router, prefix=api_prefix)
-    app.include_router(dashboard.router, prefix=api_prefix)
-    app.include_router(compliance.router, prefix=api_prefix)
-    app.include_router(audit.router, prefix=api_prefix)
-    app.include_router(reviewer.router, prefix=api_prefix)
+    app.include_router(health.router)  # /health
+    app.include_router(health.router, prefix="/api/v1")  # /api/v1/health
+    app.include_router(health.router, prefix="/api")  # /api/health
+
+    # Mount domain routes under both /api and /api/v1 for unified client support
+    for pfx in ("/api", "/api/v1"):
+        app.include_router(applications.router, prefix=pfx)
+        app.include_router(applications.submissions_router, prefix=pfx)
+        app.include_router(documents.router, prefix=pfx)
+        app.include_router(dashboard.router, prefix=pfx)
+        app.include_router(compliance.router, prefix=pfx)
+        app.include_router(audit.router, prefix=pfx)
+        app.include_router(reviewer.router, prefix=pfx)
+        app.include_router(reference_data.router, prefix=pfx)
+
+    # ------------------------------------------------------------------
+    # Authentication routes — exposed under /api/v1/auth and /api/auth
+    # ------------------------------------------------------------------
+    app.include_router(auth.router, prefix="/api/v1/auth")
+    app.include_router(auth.router, prefix="/api/auth")
 
     return app
 

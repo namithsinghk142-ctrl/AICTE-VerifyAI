@@ -17,6 +17,7 @@ from app.models import (
     FindingReviewStatus,
     FindingSeverity,
     IssuerVerification,
+    PublicReferenceInstitution,
     ValidationFinding,
 )
 from app.schemas import (
@@ -27,6 +28,46 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+
+
+@router.get(
+    "/metrics",
+    summary="Dashboard metrics for frontend with dataset mode support",
+    description="Returns aggregate KPI metrics. When mode='real', authentic application metrics are zero and reference data counts are supplied.",
+)
+def get_dashboard_metrics(
+    mode: str = Query("synthetic", pattern="^(synthetic|real)$"),
+    db: Session = Depends(get_db),
+) -> dict:
+    ref_count = db.query(func.count(PublicReferenceInstitution.id)).scalar() or 0
+    if mode == "real":
+        return {
+            "totalSubmissions": 0,
+            "pendingReview": 0,
+            "underReview": 0,
+            "escalated": 0,
+            "approvedThisMonth": 0,
+            "rejectedThisMonth": 0,
+            "avgResolutionDays": 0.0,
+            "criticalFindings": 0,
+            "mode": "real",
+            "referenceInstitutions": ref_count,
+        }
+
+    # Synthetic demo metrics matching the 30 mock submissions
+    return {
+        "totalSubmissions": 30,
+        "pendingReview": 18,
+        "underReview": 7,
+        "escalated": 4,
+        "approvedThisMonth": 12,
+        "rejectedThisMonth": 2,
+        "avgResolutionDays": 4.2,
+        "criticalFindings": 8,
+        "mode": "synthetic",
+        "referenceInstitutions": ref_count,
+    }
+
 
 
 @router.get(
