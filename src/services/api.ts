@@ -389,6 +389,95 @@ export async function fetchDatasetSummary(): Promise<any> {
   }
 }
 
+export interface InstitutionalDossier {
+  institution: PublicReferenceRecord;
+  applicationCase: {
+    id: string;
+    applicationNumber?: string;
+    status: string;
+    reviewStatus: string;
+    reviewNotes?: string;
+    reviewedAt?: string;
+    reviewerActor?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  };
+  findings: {
+    id: string;
+    findingCode: string;
+    severity: string;
+    title: string;
+    explanation: string;
+    ruleCitation?: string;
+    reviewStatus: string;
+    createdAt?: string;
+  }[];
+  reviewerNotes: {
+    id: string;
+    author: string;
+    role: string;
+    text: string;
+    category: string;
+    createdAt?: string;
+  }[];
+  auditEvents: {
+    id: string;
+    eventType: string;
+    actor?: string;
+    details?: string;
+    createdAt?: string;
+  }[];
+  documents: {
+    id: string;
+    originalFilename: string;
+    documentType: string;
+    fileSize: number;
+    sha256Hash: string;
+    processingStatus: string;
+    pageCount: number;
+  }[];
+}
+
+export async function fetchInstitutionDossier(id: string): Promise<InstitutionalDossier> {
+  return await apiFetch<InstitutionalDossier>(`/reference-data/institutions/${encodeURIComponent(id)}/dossier`);
+}
+
+export async function executeInstitutionAction(
+  id: string,
+  action: 'verify' | 'reject' | 'escalate' | 'clarify',
+  notes: string = '',
+  actor: string = 'Senior Compliance Reviewer'
+): Promise<InstitutionalDossier> {
+  return await apiFetch<InstitutionalDossier>(`/reference-data/institutions/${encodeURIComponent(id)}/action`, {
+    method: 'POST',
+    body: JSON.stringify({ action, notes, actor }),
+  });
+}
+
+export async function addInstitutionNote(
+  id: string,
+  text: string,
+  actor: string = 'Senior Compliance Reviewer',
+  role: string = 'Senior Reviewer'
+): Promise<InstitutionalDossier> {
+  return await apiFetch<InstitutionalDossier>(`/reference-data/institutions/${encodeURIComponent(id)}/note`, {
+    method: 'POST',
+    body: JSON.stringify({ text, actor, role }),
+  });
+}
+
+export async function updateInstitutionFindingStatus(
+  id: string,
+  findingId: string,
+  status: 'confirmed' | 'dismissed' | 'escalated',
+  actor: string = 'Senior Compliance Reviewer'
+): Promise<InstitutionalDossier> {
+  return await apiFetch<InstitutionalDossier>(`/reference-data/institutions/${encodeURIComponent(id)}/finding-status`, {
+    method: 'POST',
+    body: JSON.stringify({ finding_id: findingId, status, actor }),
+  });
+}
+
 
 export async function fetchSubmissionById(id: string): Promise<Submission> {
   try {
@@ -916,9 +1005,13 @@ export interface EvaluationResults {
     recall: number;
     totalTestCases: number;
     passedCases: number;
+    failedCases?: number;
     discrepanciesFlagged: number;
     falsePositives: number;
     falseNegatives: number;
+    discrepancyPrecision?: number;
+    discrepancyRecall?: number;
+    discrepancyF1?: number;
     executionTimeMs: number;
     benchmarkDataset: string;
     lastRunTimestamp: string;
@@ -926,10 +1019,24 @@ export interface EvaluationResults {
   confusionMatrix: {
     labels: string[];
     matrix: number[][];
+    classMetrics?: Record<
+      string,
+      {
+        tp: number;
+        fp: number;
+        fn: number;
+        precision: number;
+        recall: number;
+        f1: number;
+        support: number;
+      }
+    >;
+    cellCases?: Record<string, string[]>;
   };
   scenarioBreakdown: {
     category: string;
     testCount: number;
+    correctCount?: number;
     accuracy: number;
     f1Score: number;
     avgConfidence: number;
@@ -941,6 +1048,8 @@ export interface EvaluationResults {
     field: string;
     groundTruth: string;
     extractedValue: string;
+    expectedVerdict?: string;
+    predictedVerdict?: string;
     verdict: string;
     status: string;
     confidenceScore: number;
@@ -956,33 +1065,43 @@ export async function fetchEvaluationResults(): Promise<EvaluationResults> {
     await delay(150);
     return {
       summary: {
-        overallAccuracy: 97.4,
-        f1Score: 0.968,
-        precision: 0.975,
-        recall: 0.962,
-        totalTestCases: 16,
-        passedCases: 16,
-        discrepanciesFlagged: 4,
+        overallAccuracy: 87.5,
+        f1Score: 0.826,
+        precision: 0.858,
+        recall: 0.813,
+        totalTestCases: 24,
+        passedCases: 21,
+        failedCases: 3,
+        discrepanciesFlagged: 13,
         falsePositives: 0,
-        falseNegatives: 0,
-        executionTimeMs: 42,
+        falseNegatives: 1,
+        discrepancyPrecision: 1.0,
+        discrepancyRecall: 0.929,
+        discrepancyF1: 0.963,
+        executionTimeMs: 48,
         benchmarkDataset: 'AICTE-APH-2024-2027-BENCHMARK-V2',
         lastRunTimestamp: new Date().toISOString(),
       },
       confusionMatrix: {
         labels: ['MATCH', 'MISMATCH', 'NEEDS_REVIEW', 'MISSING'],
         matrix: [
-          [11, 0, 0, 0],
-          [0, 4, 0, 0],
-          [0, 0, 1, 0],
-          [0, 0, 0, 0],
+          [10, 0, 0, 0],
+          [0, 6, 0, 0],
+          [1, 1, 2, 0],
+          [0, 0, 1, 3],
         ],
+        classMetrics: {
+          MATCH: { tp: 10, fp: 1, fn: 0, precision: 0.909, recall: 1.0, f1: 0.952, support: 10 },
+          MISMATCH: { tp: 6, fp: 1, fn: 0, precision: 0.857, recall: 1.0, f1: 0.923, support: 6 },
+          NEEDS_REVIEW: { tp: 2, fp: 1, fn: 2, precision: 0.667, recall: 0.5, f1: 0.571, support: 4 },
+          MISSING: { tp: 3, fp: 0, fn: 1, precision: 1.0, recall: 0.75, f1: 0.857, support: 4 },
+        },
       },
       scenarioBreakdown: [
-        { category: 'Clean Vector PDFs', testCount: 4, accuracy: 100.0, f1Score: 0.98, avgConfidence: 0.98 },
-        { category: 'Multi-Unit Land & Metric Normalization', testCount: 4, accuracy: 100.0, f1Score: 0.98, avgConfidence: 0.98 },
-        { category: 'Cross-Document Discrepancy Reconciliation', testCount: 4, accuracy: 100.0, f1Score: 0.98, avgConfidence: 0.95 },
-        { category: 'Scanned & OCR Pre-processing', testCount: 4, accuracy: 100.0, f1Score: 0.98, avgConfidence: 0.97 },
+        { category: 'Clean Vector PDFs', testCount: 6, correctCount: 6, accuracy: 100.0, f1Score: 0.98, avgConfidence: 0.98 },
+        { category: 'Multi-Unit Land & Metric Normalization', testCount: 6, correctCount: 6, accuracy: 100.0, f1Score: 0.98, avgConfidence: 0.96 },
+        { category: 'Cross-Document Discrepancy Reconciliation', testCount: 6, correctCount: 5, accuracy: 83.3, f1Score: 0.87, avgConfidence: 0.91 },
+        { category: 'Scanned & OCR Pre-processing', testCount: 6, correctCount: 4, accuracy: 66.7, f1Score: 0.72, avgConfidence: 0.81 },
       ],
       cases: [],
     };

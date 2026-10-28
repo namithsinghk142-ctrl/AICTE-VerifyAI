@@ -479,16 +479,13 @@ def list_submissions_compat(
     limit_num = limit if isinstance(limit, int) else 50
 
     if mode_str == "real":
-        return {
-            "items": [],
-            "total": 0,
-            "page": page_num,
-            "limit": limit_num,
-            "mode": "real",
-            "message": "Authentic application dossiers have not been connected to this instance.",
-        }
-
-    q = db.query(Application).filter(Application.is_synthetic_demo == True)
+        # Per SIH26261 data governance: do not populate application workflow lists using public-reference institutions.
+        q = db.query(Application).filter(
+            Application.is_synthetic_demo == False,
+            Application.data_classification.in_(["AUTHENTIC_APPLICATION", "AUTHENTIC_SUBMISSION"]),
+        )
+    else:
+        q = db.query(Application).filter(Application.is_synthetic_demo == True)
     if state_str and state_str.lower() != "all":
         q = q.filter(Application.institution_state.ilike(f"%{state_str}%"))
     if query_str:
@@ -511,13 +508,16 @@ def list_submissions_compat(
     total = len(formatted)
     paginated = formatted[(page_num - 1) * limit_num : page_num * limit_num]
 
-    return {
+    res = {
         "items": paginated,
         "total": total,
         "page": page_num,
         "limit": limit_num,
-        "mode": "synthetic",
+        "mode": mode_str,
     }
+    if mode_str == "real" and total == 0:
+        res["message"] = "Authentic application dossiers have not been connected to this instance."
+    return res
 
 
 @submissions_router.get("/{id}")

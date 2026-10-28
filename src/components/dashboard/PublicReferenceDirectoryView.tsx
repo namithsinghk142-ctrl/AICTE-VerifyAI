@@ -11,8 +11,10 @@ import {
   Database,
   MapPin,
   Calendar,
+  Download,
 } from 'lucide-react';
 import { InstitutionalReferenceDetailModal } from '../common/InstitutionalReferenceDetailModal';
+import { downloadInstitutionalSummaryReport } from '../../utils/downloadHelpers';
 
 interface PublicReferenceDirectoryViewProps {
   onSwitchToSynthetic?: () => void;
@@ -471,9 +473,33 @@ export const PublicReferenceDirectoryView: React.FC<PublicReferenceDirectoryView
                             width: 'fit-content',
                             marginTop: '2px',
                           }}
+                          title="Open internal scrutiny dossier and review workflow"
                         >
                           <Building2 size={11} color="#C14E83" />
-                          <span>In-App Detail</span>
+                          <span>Scrutiny Dossier</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => downloadInstitutionalSummaryReport(rec)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            color: '#15803D',
+                            background: '#F0FDF4',
+                            border: '1px solid #BBF7D0',
+                            borderRadius: '4px',
+                            padding: '3px 8px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            width: 'fit-content',
+                            marginTop: '2px',
+                          }}
+                          title="Download official verification dossier summary PDF"
+                        >
+                          <Download size={11} color="#15803D" />
+                          <span>Download Dossier</span>
                         </button>
                       </div>
                     </td>

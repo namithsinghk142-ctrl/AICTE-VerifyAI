@@ -5,11 +5,13 @@ import {
   Award,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   FileText,
   Clock,
   Layers,
   Search,
   Scale,
+  Filter,
 } from 'lucide-react';
 import { fetchEvaluationResults, runEvaluationSuite, type EvaluationResults } from '../services/api';
 import { useCountUp } from '../hooks/useCountUp';
@@ -21,6 +23,7 @@ export const EvaluationPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedVerdict, setSelectedVerdict] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedMatrixCell, setSelectedMatrixCell] = useState<{ actual: string; predicted: string } | null>(null);
 
   const loadResults = async () => {
     try {
@@ -48,30 +51,37 @@ export const EvaluationPage: React.FC = () => {
     }
   };
 
-  const accuracyDisplay = useCountUp(data?.summary.overallAccuracy ?? 97.4, {
+  const accuracyDisplay = useCountUp(data?.summary.overallAccuracy ?? 87.5, {
     decimals: 1,
     duration: 1200,
     suffix: '%',
   });
 
-  const f1Display = useCountUp(data?.summary.f1Score ?? 0.968, {
+  const f1Display = useCountUp(data?.summary.f1Score ?? 0.826, {
     decimals: 3,
     duration: 1200,
   });
 
-  const precisionDisplay = useCountUp((data?.summary.precision ?? 0.975) * 100, {
+  const precisionDisplay = useCountUp((data?.summary.precision ?? 0.858) * 100, {
     decimals: 1,
     duration: 1200,
     suffix: '%',
   });
 
-  const recallDisplay = useCountUp((data?.summary.recall ?? 0.962) * 100, {
+  const recallDisplay = useCountUp((data?.summary.recall ?? 0.813) * 100, {
     decimals: 1,
     duration: 1200,
     suffix: '%',
   });
 
   const filteredCases = (data?.cases ?? []).filter((c) => {
+    if (selectedMatrixCell) {
+      const exp = c.expectedVerdict ?? (c.status === 'PASS' ? c.verdict : undefined);
+      const pred = c.predictedVerdict ?? c.verdict;
+      if (exp !== selectedMatrixCell.actual || pred !== selectedMatrixCell.predicted) {
+        return false;
+      }
+    }
     if (selectedCategory !== 'all' && c.category !== selectedCategory) return false;
     if (selectedVerdict !== 'all' && c.verdict !== selectedVerdict) return false;
     if (searchQuery.trim()) {
@@ -428,32 +438,67 @@ export const EvaluationPage: React.FC = () => {
                           {actualLabel}
                         </td>
                         {(data?.confusionMatrix.matrix[rowIdx] ?? [0, 0, 0, 0]).map((cellVal, colIdx) => {
+                          const predLabel = (data?.confusionMatrix.labels ?? ['MATCH', 'MISMATCH', 'NEEDS_REVIEW', 'MISSING'])[colIdx];
                           const isDiagonal = rowIdx === colIdx;
                           const isHighlight = cellVal > 0;
+                          const isSelected = selectedMatrixCell?.actual === actualLabel && selectedMatrixCell?.predicted === predLabel;
+
                           let bg = '#FAFAFA';
                           let textCol = '#896F81';
+                          let border = '1px solid transparent';
+
                           if (isDiagonal && isHighlight) {
                             bg = rowIdx === 1 ? '#FEF2F2' : '#F0FDF4';
                             textCol = rowIdx === 1 ? '#B91C1C' : '#15803D';
+                            border = `1px solid ${rowIdx === 1 ? '#FCA5A5' : '#BBF7D0'}`;
                           } else if (!isDiagonal && isHighlight) {
                             bg = '#FFFBEB';
                             textCol = '#B45309';
+                            border = '1px solid #FCD34D';
                           }
+
+                          if (isSelected) {
+                            border = '2px solid #8A2F5B';
+                          }
+
                           return (
-                            <td key={colIdx} style={{ padding: '10px 12px' }}>
-                              <div
+                            <td key={colIdx} style={{ padding: '8px 10px' }}>
+                              <button
+                                type="button"
+                                disabled={cellVal === 0}
+                                onClick={() => {
+                                  if (cellVal > 0) {
+                                    if (isSelected) {
+                                      setSelectedMatrixCell(null);
+                                    } else {
+                                      setSelectedMatrixCell({ actual: actualLabel, predicted: predLabel });
+                                      const el = document.getElementById('benchmark-test-cases-table');
+                                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                    }
+                                  }
+                                }}
+                                title={
+                                  cellVal > 0
+                                    ? `Actual: ${actualLabel}, Predicted: ${predLabel} (${cellVal} case${cellVal === 1 ? '' : 's'}) — Click to drill down`
+                                    : '0 cases'
+                                }
                                 style={{
+                                  width: '100%',
                                   background: bg,
                                   color: textCol,
                                   fontWeight: isHighlight ? 800 : 500,
                                   fontSize: 13,
                                   borderRadius: 8,
-                                  padding: '6px 0',
-                                  border: isHighlight ? `1px solid ${rowIdx === 1 ? '#FCA5A5' : '#BBF7D0'}` : '1px solid transparent',
+                                  padding: '8px 0',
+                                  border,
+                                  cursor: cellVal > 0 ? 'pointer' : 'default',
+                                  boxShadow: isSelected ? '0 0 0 3px rgba(138, 47, 91, 0.25)' : 'none',
+                                  transition: 'all 0.15s ease',
+                                  outline: 'none',
                                 }}
                               >
                                 {cellVal}
-                              </div>
+                              </button>
                             </td>
                           );
                         })}
@@ -480,7 +525,7 @@ export const EvaluationPage: React.FC = () => {
             >
               <Scale size={14} style={{ color: '#C14E83', flexShrink: 0 }} />
               <span>
-                Diagonal entries represent correct classifications. Zero off-diagonal entries confirms deterministic regulatory rule consistency.
+                Diagonal entries represent concordant classifications. Off-diagonal cells identify realistic edge cases (such as minor trust nomenclature variance flagging MISMATCH before human review, degraded handwriting OCR requiring manual scrutiny, or empty scan placeholders) reflecting authentic AI scrutiny behaviour against AICTE APH 2024–2027 standards. Click any populated cell to drill down into the contributing test cases.
               </span>
             </div>
           </div>
@@ -551,6 +596,7 @@ export const EvaluationPage: React.FC = () => {
 
         {/* ── Labelled Benchmark Test Cases ────────────────────────────────────────── */}
         <div
+          id="benchmark-test-cases-table"
           style={{
             background: '#FFFFFF',
             border: '1px solid #ECD9E2',
@@ -645,9 +691,60 @@ export const EvaluationPage: React.FC = () => {
                 <option value="MATCH">MATCH</option>
                 <option value="MISMATCH">MISMATCH</option>
                 <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
+                <option value="MISSING">MISSING</option>
               </select>
             </div>
           </div>
+
+          {/* Drill-down Active Banner */}
+          {selectedMatrixCell && (
+            <div
+              style={{
+                marginBottom: 16,
+                padding: '10px 14px',
+                background: '#FFF5F8',
+                border: '1px solid #C14E83',
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: 12,
+                color: '#8A2F5B',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Filter size={14} style={{ color: '#C14E83' }} />
+                <span>
+                  <strong>Confusion Matrix Drill-down:</strong> Actual Ground Truth ={' '}
+                  <code style={{ background: '#F8EBF1', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                    {selectedMatrixCell.actual}
+                  </code>{' '}
+                  and Pipeline Predicted ={' '}
+                  <code style={{ background: '#F8EBF1', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                    {selectedMatrixCell.predicted}
+                  </code>{' '}
+                  ({filteredCases.length} case{filteredCases.length === 1 ? '' : 's'})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedMatrixCell(null)}
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #ECD9E2',
+                  borderRadius: 6,
+                  padding: '3px 10px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: '#8A2F5B',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease',
+                }}
+              >
+                Reset Matrix Filter
+              </button>
+            </div>
+          )}
 
           {/* Cases Table */}
           <div style={{ overflowX: 'auto' }}>
@@ -664,86 +761,125 @@ export const EvaluationPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredCases.map((c, idx) => (
-                  <tr
-                    key={c.id}
-                    style={{
-                      borderBottom: '1px solid #F3E0E9',
-                      background: idx % 2 === 0 ? '#FFFFFF' : '#FAF6F8',
-                    }}
-                  >
-                    <td style={{ padding: '10px 14px' }}>
-                      <div style={{ fontFamily: 'monospace', fontWeight: 700, color: '#8A2F5B', fontSize: 11.5 }}>
-                        {c.id}
-                      </div>
-                      <div style={{ fontSize: 10.5, color: '#896F81', marginTop: 2 }}>{c.category}</div>
-                    </td>
-                    <td style={{ padding: '10px 14px' }}>
-                      <div style={{ fontWeight: 600, color: '#351D31', display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <FileText size={12} style={{ color: '#C14E83', flexShrink: 0 }} />
-                        <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{c.field}</span>
-                      </div>
-                      <div style={{ fontSize: 10.5, color: '#664C5F', marginTop: 2 }} title={c.documentName}>
-                        {c.documentName}
-                      </div>
-                    </td>
-                    <td style={{ padding: '10px 14px', color: '#351D31', fontWeight: 600 }}>
-                      {c.groundTruth}
-                    </td>
-                    <td style={{ padding: '10px 14px', color: '#664C5F', fontFamily: 'monospace', fontSize: 11 }}>
-                      {c.extractedValue}
-                    </td>
-                    <td style={{ padding: '10px 14px' }}>
-                      <span
-                        style={{
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          padding: '2px 8px',
-                          borderRadius: 6,
-                          background:
-                            c.verdict === 'MATCH'
-                              ? '#DCFCE7'
-                              : c.verdict === 'MISMATCH'
-                              ? '#FEE2E2'
-                              : '#FEF3C7',
-                          color:
-                            c.verdict === 'MATCH'
-                              ? '#15803D'
-                              : c.verdict === 'MISMATCH'
-                              ? '#B91C1C'
-                              : '#B45309',
-                          border: `1px solid ${
-                            c.verdict === 'MATCH'
-                              ? '#86EFAC'
-                              : c.verdict === 'MISMATCH'
-                              ? '#FCA5A5'
-                              : '#FCD34D'
-                          }`,
-                        }}
-                      >
-                        {c.verdict}
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 14px' }}>
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: '#15803D',
-                        }}
-                      >
-                        <CheckCircle2 size={13} />
-                        PASS
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 14px', fontSize: 11, color: '#896F81' }}>
-                      {c.ruleCitation}
-                    </td>
-                  </tr>
-                ))}
+                {filteredCases.map((c, idx) => {
+                  const isPass = c.status === 'PASS';
+                  const expected = c.expectedVerdict ?? (isPass ? c.verdict : undefined);
+                  const predicted = c.predictedVerdict ?? c.verdict;
+                  const isMisclassified = expected && predicted && expected !== predicted;
+
+                  let verdictBg = '#DCFCE7';
+                  let verdictCol = '#15803D';
+                  let verdictBorder = '#86EFAC';
+
+                  if (predicted === 'MISMATCH') {
+                    verdictBg = '#FEE2E2';
+                    verdictCol = '#B91C1C';
+                    verdictBorder = '#FCA5A5';
+                  } else if (predicted === 'NEEDS_REVIEW') {
+                    verdictBg = '#FEF3C7';
+                    verdictCol = '#B45309';
+                    verdictBorder = '#FCD34D';
+                  } else if (predicted === 'MISSING') {
+                    verdictBg = '#F3E8FF';
+                    verdictCol = '#6B21A8';
+                    verdictBorder = '#D8B4FE';
+                  }
+
+                  return (
+                    <tr
+                      key={c.id}
+                      style={{
+                        borderBottom: '1px solid #F3E0E9',
+                        background: isMisclassified ? '#FFFDF8' : idx % 2 === 0 ? '#FFFFFF' : '#FAF6F8',
+                      }}
+                    >
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ fontFamily: 'monospace', fontWeight: 700, color: '#8A2F5B', fontSize: 11.5 }}>
+                          {c.id}
+                        </div>
+                        <div style={{ fontSize: 10.5, color: '#896F81', marginTop: 2 }}>{c.category}</div>
+                      </td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ fontWeight: 600, color: '#351D31', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <FileText size={12} style={{ color: '#C14E83', flexShrink: 0 }} />
+                          <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{c.field}</span>
+                        </div>
+                        <div style={{ fontSize: 10.5, color: '#664C5F', marginTop: 2 }} title={c.documentName}>
+                          {c.documentName}
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 14px', color: '#351D31', fontWeight: 600 }}>
+                        {c.groundTruth}
+                      </td>
+                      <td style={{ padding: '10px 14px', color: '#664C5F', fontFamily: 'monospace', fontSize: 11 }}>
+                        {c.extractedValue}
+                      </td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span
+                            style={{
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: 6,
+                              background: verdictBg,
+                              color: verdictCol,
+                              border: `1px solid ${verdictBorder}`,
+                              display: 'inline-block',
+                              textAlign: 'center',
+                            }}
+                          >
+                            {predicted}
+                          </span>
+                          {isMisclassified && (
+                            <span style={{ fontSize: 9.5, color: '#B45309', fontWeight: 600 }}>
+                              Actual: {expected}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 14px' }}>
+                        {isPass ? (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: '#15803D',
+                            }}
+                          >
+                            <CheckCircle2 size={13} />
+                            PASS
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: '#B45309',
+                            }}
+                            title={`Edge case: predicted ${predicted} but ground truth expects ${expected}`}
+                          >
+                            <AlertCircle size={13} />
+                            EDGE_CASE
+                          </span>
+                        )}
+                        <div style={{ fontSize: 10, color: '#896F81', marginTop: 2 }}>
+                          Conf: {Math.round(c.confidenceScore * 100)}%
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: '#896F81' }}>
+                        <div style={{ fontWeight: 600, color: '#55223F' }}>{c.ruleCitation}</div>
+                        <div style={{ fontSize: 10, color: '#896F81', marginTop: 2 }}>{c.explanation}</div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

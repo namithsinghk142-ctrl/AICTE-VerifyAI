@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import (
     Application,
+    ApplicationStatus,
     AuditEvent,
     ComplianceEvaluation,
     Document,
@@ -33,7 +34,7 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 @router.get(
     "/metrics",
     summary="Dashboard metrics for frontend with dataset mode support",
-    description="Returns aggregate KPI metrics. When mode='real', authentic application metrics are zero and reference data counts are supplied.",
+    description="Returns aggregate KPI metrics computed dynamically from database for both synthetic and real modes.",
 )
 def get_dashboard_metrics(
     mode: str = Query("synthetic", pattern="^(synthetic|real)$"),
@@ -41,29 +42,120 @@ def get_dashboard_metrics(
 ) -> dict:
     ref_count = db.query(func.count(PublicReferenceInstitution.id)).scalar() or 0
     if mode == "real":
+        # Per SIH26261 data governance: do not populate application workflow metrics using public-reference institutions.
+        # Only authentic applicant submissions are counted here.
+        real_q = db.query(Application).filter(
+            Application.is_synthetic_demo == False,
+            Application.data_classification.in_(["AUTHENTIC_APPLICATION", "AUTHENTIC_SUBMISSION"]),
+        )
+        total_real = real_q.count()
+        real_pending = real_q.filter(
+            or_(
+                Application.review_status.in_(["pending_review", "pending"]),
+                Application.status == ApplicationStatus.SUBMITTED,
+            )
+        ).count()
+        real_under_review = real_q.filter(
+            or_(
+                Application.review_status.in_(["under_review", "in_review"]),
+                Application.status == ApplicationStatus.UNDER_REVIEW,
+            )
+        ).count()
+        real_escalated = real_q.filter(
+            or_(
+                Application.review_status == "escalated",
+                Application.status == ApplicationStatus.REQUIRES_CLARIFICATION,
+            )
+        ).count()
+        real_approved = real_q.filter(
+            or_(
+                Application.review_status == "approved",
+                Application.status == ApplicationStatus.VALIDATED,
+            )
+        ).count()
+        real_rejected = real_q.filter(
+            or_(
+                Application.review_status == "rejected",
+                Application.status == ApplicationStatus.REJECTED,
+            )
+        ).count()
+        real_critical = (
+            db.query(func.count(ValidationFinding.id))
+            .join(Application)
+            .filter(
+                Application.is_synthetic_demo == False,
+                Application.data_classification.in_(["AUTHENTIC_APPLICATION", "AUTHENTIC_SUBMISSION"]),
+                ValidationFinding.severity == FindingSeverity.CRITICAL,
+            )
+            .scalar()
+            or 0
+        )
         return {
-            "totalSubmissions": 0,
-            "pendingReview": 0,
-            "underReview": 0,
-            "escalated": 0,
-            "approvedThisMonth": 0,
-            "rejectedThisMonth": 0,
+            "totalSubmissions": total_real,
+            "pendingReview": real_pending,
+            "underReview": real_under_review,
+            "escalated": real_escalated,
+            "approvedThisMonth": real_approved,
+            "rejectedThisMonth": real_rejected,
             "avgResolutionDays": 0.0,
-            "criticalFindings": 0,
+            "criticalFindings": real_critical,
             "mode": "real",
             "referenceInstitutions": ref_count,
         }
 
-    # Synthetic demo metrics matching the 30 mock submissions
+    # Synthetic demo metrics queried dynamically from database
+    synth_q = db.query(Application).filter(Application.is_synthetic_demo == True)
+    total_synth = synth_q.count()
+    synth_pending = synth_q.filter(
+        or_(
+            Application.review_status.in_(["pending_review", "pending"]),
+            Application.status == ApplicationStatus.SUBMITTED,
+        )
+    ).count()
+    synth_under_review = synth_q.filter(
+        or_(
+            Application.review_status.in_(["under_review", "in_review"]),
+            Application.status == ApplicationStatus.UNDER_REVIEW,
+        )
+    ).count()
+    synth_escalated = synth_q.filter(
+        or_(
+            Application.review_status == "escalated",
+            Application.status == ApplicationStatus.REQUIRES_CLARIFICATION,
+        )
+    ).count()
+    synth_approved = synth_q.filter(
+        or_(
+            Application.review_status == "approved",
+            Application.status == ApplicationStatus.VALIDATED,
+        )
+    ).count()
+    synth_rejected = synth_q.filter(
+        or_(
+            Application.review_status == "rejected",
+            Application.status == ApplicationStatus.REJECTED,
+        )
+    ).count()
+    synth_critical = (
+        db.query(func.count(ValidationFinding.id))
+        .join(Application)
+        .filter(
+            Application.is_synthetic_demo == True,
+            ValidationFinding.severity == FindingSeverity.CRITICAL,
+        )
+        .scalar()
+        or 0
+    )
+
     return {
-        "totalSubmissions": 30,
-        "pendingReview": 18,
-        "underReview": 7,
-        "escalated": 4,
-        "approvedThisMonth": 12,
-        "rejectedThisMonth": 2,
+        "totalSubmissions": total_synth,
+        "pendingReview": synth_pending,
+        "underReview": synth_under_review,
+        "escalated": synth_escalated,
+        "approvedThisMonth": synth_approved,
+        "rejectedThisMonth": synth_rejected,
         "avgResolutionDays": 4.2,
-        "criticalFindings": 8,
+        "criticalFindings": synth_critical,
         "mode": "synthetic",
         "referenceInstitutions": ref_count,
     }
