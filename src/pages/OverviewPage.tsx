@@ -326,7 +326,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
 
         {/* ── Mode-conditioned Content View ──────────────────────────────── */}
         {datasetMode === 'real' ? (
-          <PublicReferenceDirectoryView />
+          <PublicReferenceDirectoryView onSwitchToSynthetic={() => handleModeChange('synthetic')} />
         ) : (
           <>
             {/* ── Top priority cases + compact summary panel ─────────────────── */}

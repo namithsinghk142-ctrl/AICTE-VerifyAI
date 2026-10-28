@@ -497,6 +497,32 @@ class LoginPayload(BaseModel):
     password: str = Field(..., min_length=1)
 
 
+class GoogleLoginPayload(BaseModel):
+    """Payload for Google OAuth ID token verification."""
+
+    credential: str = Field(..., description="Google ID Token JWT (OpenID Connect)")
+    client_id: str | None = Field(None, alias="clientId", description="Optional client id")
+
+
+class RegisterPayload(BaseModel):
+    """Payload for reviewer account registration."""
+
+    email: str = Field(..., examples=["namithsceptile142@gmail.com"])
+    password: str = Field(..., min_length=8, description="Minimum 8 characters")
+    name: str = Field(..., min_length=2, max_length=255)
+
+
+class AuthConfigResponse(BaseModel):
+    """Public authentication configuration returned to frontend."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    google_client_id: str | None = Field(None, alias="googleClientId")
+    google_auth_enabled: bool = Field(False, alias="googleAuthEnabled")
+    auth_methods: list[str] = Field(default_factory=lambda: ["google", "email_password"], alias="authMethods")
+    registration_enabled: bool = Field(True, alias="registrationEnabled")
+
+
 class ReviewerProfileResponse(BaseModel):
     """Reviewer profile matching frontend ReviewerProfile interface."""
 
@@ -508,6 +534,8 @@ class ReviewerProfileResponse(BaseModel):
     avatar_initials: str = Field(..., alias="avatarInitials")
     assigned_count: int = Field(0, alias="assignedCount")
     resolved_this_month: int = Field(0, alias="resolvedThisMonth")
+    email: str | None = None
+    auth_provider: str | None = Field("local", alias="authProvider")
 
 
 # ---------------------------------------------------------------------------

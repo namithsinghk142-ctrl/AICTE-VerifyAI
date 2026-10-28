@@ -86,6 +86,7 @@ const SECTION_LABELS: Record<NavSection, string> = {
   'evidence-search': 'Evidence Search',
   'audit-events': 'Audit Events',
   analytics: 'Compliance Analytics',
+  evaluation: 'Empirical Evaluation Centre',
 };
 
 interface TopBarProps {
@@ -217,13 +218,12 @@ export const TopBar: React.FC<TopBarProps> = ({
           <button
             type="button"
             onClick={() => setDemoOpen((v) => !v)}
-            className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-full px-3 py-1 transition-all cursor-pointer"
-            title="What is Demo Mode?"
+            className="flex items-center justify-center w-7 h-7 rounded-full transition-all cursor-pointer"
+            title="Demo Mode information"
+            aria-label="Demo Mode information"
+            style={{ border: 'none', background: 'none', color: '#896F81' }}
           >
-            <FlaskConical size={12} className="text-amber-600" />
-            <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide">
-              Prototype Data
-            </span>
+            <FlaskConical size={14} />
           </button>
 
           {demoOpen && (

@@ -43,10 +43,28 @@ class Settings(BaseSettings):
     mock_issuer_provider_available: bool = True
     enable_compliance_assistance: bool = True
 
+    # Google OAuth 2.0 / OpenID Connect (Phase 7 - Authentication)
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    google_redirect_uri: str | None = "http://localhost:5173"
+
+    # Administrator-controlled allowlist (comma-separated, normalized lowercase)
+    # Only approved emails may establish an active authenticated session
+    approved_emails: str = "adhav.sri123@gmail.com,namithsceptile142@gmail.com"
+
+    # Authentication Token & Security
+    token_secret: str = "sih-verifyai-dev-secret-do-not-use-in-production-2026"
+    token_ttl_seconds: int = 8 * 60 * 60  # 8 hours
+
     @property
     def cors_origin_list(self) -> list[str]:
         """Parse the comma-separated CORS_ORIGINS string into a list."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def approved_email_list(self) -> list[str]:
+        """Parse the normalized comma-separated approved emails list."""
+        return [e.strip().lower() for e in self.approved_emails.split(",") if e.strip()]
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

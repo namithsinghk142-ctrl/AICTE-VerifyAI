@@ -295,11 +295,11 @@ def get_health():
 def get_current_reviewer():
     return {
         "id": "rev-001",
-        "name": "Priya Venkataraman",
+        "name": "Adhavan S",
         "role": "Senior Compliance Reviewer",
-        "avatarInitials": "PV",
-        "assignedCount": 12,
-        "resolvedThisMonth": 34,
+        "avatarInitials": "AS",
+        "assignedCount": 8,
+        "resolvedThisMonth": 22,
     }
 
 

@@ -19,6 +19,7 @@ from app.routes import (
     compliance,
     dashboard,
     documents,
+    evaluation,
     health,
     reference_data,
     reviewer,
@@ -42,6 +43,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Ensure baseline and demo reviewer accounts are safely seeded without overwriting
     with SessionLocal() as db_session:
         seed_reviewer_accounts(db_session)
+        from app.services.synthetic_seeder import seed_synthetic_applications_if_empty
+        seed_synthetic_applications_if_empty(db_session)
         from app.models import PublicReferenceInstitution
         if db_session.query(PublicReferenceInstitution).count() == 0:
             import_verified_dataset(db_session, dry_run=False)
@@ -117,6 +120,7 @@ def create_app() -> FastAPI:
         app.include_router(audit.router, prefix=pfx)
         app.include_router(reviewer.router, prefix=pfx)
         app.include_router(reference_data.router, prefix=pfx)
+        app.include_router(evaluation.router, prefix=pfx)
 
     # ------------------------------------------------------------------
     # Authentication routes — exposed under /api/v1/auth and /api/auth

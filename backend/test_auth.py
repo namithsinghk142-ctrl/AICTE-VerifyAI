@@ -51,7 +51,7 @@ def test_auth_login_adhav_success():
     assert "verifyai_token" in response.cookies
 
 
-def test_existing_reviewer_priya_intact():
+def test_existing_reviewer_priya_cannot_login():
     db = next(get_db())
     seed_reviewer_accounts(db)
     db.close()
@@ -63,11 +63,8 @@ def test_existing_reviewer_priya_intact():
         "/api/v1/auth/login",
         json={"email": priya_email, "password": priya_password},
     )
-    assert response.status_code == 200, response.text
-    data = response.json()
-    assert data["name"] == "Priya Venkataraman"
-    assert data["role"] == "Senior Compliance Reviewer"
-    assert "verifyai_token" in response.cookies
+    assert response.status_code == 401, "Priya demo account must not be able to log in"
+    assert "verifyai_token" not in response.cookies
 
 
 def test_auth_login_invalid_password():
@@ -118,7 +115,7 @@ if __name__ == "__main__":
     test_password_hashing()
     test_token_generation_and_verification()
     test_auth_login_adhav_success()
-    test_existing_reviewer_priya_intact()
+    test_existing_reviewer_priya_cannot_login()
     test_auth_login_invalid_password()
     test_auth_login_unknown_user()
     test_auth_me_authenticated_and_unauthenticated()

@@ -57,6 +57,7 @@ export interface Finding {
   reviewerNextStep?: string;
   statusNotice?: string;
   findingType?: 'missing_information' | 'inconsistent_information' | 'rule_violation' | 'potential_anomaly';
+  reviewStatus?: 'pending' | 'confirmed' | 'dismissed' | string;
 }
 
 export interface DocumentParagraph {
@@ -196,6 +197,8 @@ export interface ReviewerProfile {
   avatarInitials: string;
   assignedCount: number;
   resolvedThisMonth: number;
+  email?: string;
+  authProvider?: string;
 }
 
 // ─── Provenance & Reference Data ──────────────────────────────────────────────
@@ -235,6 +238,7 @@ export interface PublicReferenceRecord {
   sourcePublisher?: string;
   contentChecksum?: string;
   validationStatus?: string;
+  datasetVersion?: string;
 }
 
 export type DatasetMode = 'synthetic' | 'real';

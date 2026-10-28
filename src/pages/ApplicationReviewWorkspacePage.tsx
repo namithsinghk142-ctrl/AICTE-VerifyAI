@@ -13,6 +13,7 @@ import {
   requestEvidence,
   fetchAuditEvents,
   fetchCrossDocComparisons,
+  resolveFinding,
 } from '../services/api';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
@@ -134,6 +135,53 @@ export const ApplicationReviewWorkspacePage: React.FC<ApplicationReviewWorkspace
     );
 
   const totalPages = activeDocContent?.pages?.length ?? activeDocument?.pageCount ?? 1;
+
+  // Handler: Resolving finding (confirm/dismiss)
+  const handleResolveFinding = async (findingId: string, status: 'confirmed' | 'dismissed', reason?: string) => {
+    if (!submission) return;
+    try {
+      const res = await resolveFinding(submission.id, findingId, status, reason);
+      if (res && res.success) {
+        setSubmission((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            findings: prev.findings.map((f) =>
+              f.id === findingId
+                ? {
+                    ...f,
+                    reviewStatus: status,
+                    statusNotice: res.finding?.statusNotice || `${status === 'confirmed' ? 'Confirmed' : 'Dismissed'} by Reviewer`,
+                  }
+                : f
+            ),
+          };
+        });
+        if (inspectingFinding && inspectingFinding.id === findingId) {
+          setInspectingFinding((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  reviewStatus: status,
+                  statusNotice: res.finding?.statusNotice || `${status === 'confirmed' ? 'Confirmed' : 'Dismissed'} by Reviewer`,
+                }
+              : null
+          );
+        }
+        const updatedAudit = await fetchAuditEvents(50, undefined, submission.id);
+        if (updatedAudit) setAuditEvents(updatedAudit);
+        setActionMessage({
+          type: 'success',
+          text: `Finding determination recorded: ${status === 'confirmed' ? 'Confirmed' : 'Dismissed'}.`,
+        });
+      }
+    } catch (err: any) {
+      setActionMessage({
+        type: 'error',
+        text: err.message || 'Failed to update finding status.',
+      });
+    }
+  };
 
   // Handler: Selecting a finding in the findings panel
   const handleSelectFinding = (finding: Finding) => {
@@ -649,6 +697,7 @@ export const ApplicationReviewWorkspacePage: React.FC<ApplicationReviewWorkspace
                   setCurrentPage(pageNum);
                 }}
                 onInspectFinding={(f) => setInspectingFinding(f)}
+                onResolveFinding={handleResolveFinding}
               />
             </div>
           </div>
@@ -709,6 +758,7 @@ export const ApplicationReviewWorkspacePage: React.FC<ApplicationReviewWorkspace
           setDownloadNotice(msg);
           setTimeout(() => setDownloadNotice(null), 4000);
         }}
+        onResolveFinding={handleResolveFinding}
       />
 
       {/* Consequential Reviewer Action Modal */}

@@ -7,6 +7,7 @@ import { ActionQueuePage } from './pages/ActionQueuePage';
 import { EvidenceSearchPage } from './pages/EvidenceSearchPage';
 import { AuditEventsPage } from './pages/AuditEventsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
+import { EvaluationPage } from './pages/EvaluationPage';
 import {
   fetchAuthMe,
   logoutReviewer,
@@ -58,7 +59,7 @@ function App() {
     // Check backend health
     fetchSystemHealth()
       .then((h) => {
-        if (isMounted) setBackendOnline(h.status === 'healthy');
+        if (isMounted) setBackendOnline(h.status === 'healthy' || h.status === 'ok');
       })
       .catch(() => {
         if (isMounted) setBackendOnline(false);
@@ -89,7 +90,7 @@ function App() {
 
     // Refresh live status & counts
     fetchSystemHealth()
-      .then((h) => setBackendOnline(h.status === 'healthy'))
+      .then((h) => setBackendOnline(h.status === 'healthy' || h.status === 'ok'))
       .catch(() => setBackendOnline(false));
 
     fetchSubmissions()
@@ -212,6 +213,8 @@ function App() {
         return <AuditEventsPage />;
       case 'analytics':
         return <AnalyticsPage />;
+      case 'evaluation':
+        return <EvaluationPage />;
       default:
         return (
           <OverviewPage

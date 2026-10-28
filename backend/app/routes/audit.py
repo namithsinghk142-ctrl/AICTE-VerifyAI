@@ -178,13 +178,17 @@ def get_audit_compat(
     submission_id: str | None = Query(None),
     db: Session = Depends(get_db),
 ) -> list[dict]:
-    query = db.query(AuditEvent)
-    if action and action != "all":
-        query = query.filter(AuditEvent.event_type == action)
-    if submission_id:
-        query = query.filter(AuditEvent.application_id == submission_id)
+    limit_num = limit if isinstance(limit, int) else 50
+    action_str = action if isinstance(action, str) else None
+    sub_id_str = submission_id if isinstance(submission_id, str) else None
 
-    events = query.order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc()).limit(limit).all()
+    query = db.query(AuditEvent)
+    if action_str and action_str != "all":
+        query = query.filter(AuditEvent.event_type == action_str)
+    if sub_id_str:
+        query = query.filter(AuditEvent.application_id == sub_id_str)
+
+    events = query.order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc()).limit(limit_num).all()
     out = []
     for ev in events:
         inst_name = "Institution"

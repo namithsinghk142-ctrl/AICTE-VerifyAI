@@ -12,14 +12,22 @@ import {
   MapPin,
   Calendar,
 } from 'lucide-react';
+import { InstitutionalReferenceDetailModal } from '../common/InstitutionalReferenceDetailModal';
 
-export const PublicReferenceDirectoryView: React.FC = () => {
+interface PublicReferenceDirectoryViewProps {
+  onSwitchToSynthetic?: () => void;
+}
+
+export const PublicReferenceDirectoryView: React.FC<PublicReferenceDirectoryViewProps> = ({
+  onSwitchToSynthetic,
+}) => {
   const [records, setRecords] = useState<PublicReferenceRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedState, setSelectedState] = useState('all');
   const [summaryData, setSummaryData] = useState<any>(null);
+  const [selectedRecord, setSelectedRecord] = useState<PublicReferenceRecord | null>(null);
 
   const loadRecords = async () => {
     setLoading(true);
@@ -334,7 +342,13 @@ export const PublicReferenceDirectoryView: React.FC = () => {
                       </span>
                     </td>
                     <td style={{ padding: '10px 14px', fontWeight: 600, color: '#351D31' }}>
-                      <div>{rec.institutionName}</div>
+                      <div
+                        onClick={() => setSelectedRecord(rec)}
+                        style={{ cursor: 'pointer', color: '#8A2F5B', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                        title="Click to view detailed institutional provenance and registry record"
+                      >
+                        {rec.institutionName}
+                      </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
                         {rec.institutionWebsiteUrl ? (
                           <a
@@ -439,6 +453,28 @@ export const PublicReferenceDirectoryView: React.FC = () => {
                           <span>AISHE Directory</span>
                           <ExternalLink size={9} />
                         </a>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRecord(rec)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            color: '#8A2F5B',
+                            background: '#FFF0F5',
+                            border: '1px solid #ECD9E2',
+                            borderRadius: '4px',
+                            padding: '3px 8px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            width: 'fit-content',
+                            marginTop: '2px',
+                          }}
+                        >
+                          <Building2 size={11} color="#C14E83" />
+                          <span>In-App Detail</span>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -448,6 +484,13 @@ export const PublicReferenceDirectoryView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      <InstitutionalReferenceDetailModal
+        record={selectedRecord}
+        isOpen={Boolean(selectedRecord)}
+        onClose={() => setSelectedRecord(null)}
+        onSwitchToSynthetic={onSwitchToSynthetic}
+      />
     </div>
   );
 };

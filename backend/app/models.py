@@ -115,6 +115,14 @@ class Application(Base):
     source_record_id: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
     import_batch_id: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
 
+    application_number: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
+    institution_city: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
+    institution_state: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
+    institution_type: Mapped[str | None] = mapped_column(String(50), nullable=True, default=None)
+    aicte_id: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
+    priority_score: Mapped[int] = mapped_column(Integer, default=50, nullable=False)
+    due_date: Mapped[str | None] = mapped_column(String(30), nullable=True, default=None)
+
     review_status: Mapped[str | None] = mapped_column(String(50), nullable=True, default=None)
     review_notes: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
@@ -131,6 +139,9 @@ class Application(Base):
         back_populates="application", cascade="all, delete-orphan"
     )
     review_actions: Mapped[list["ReviewAction"]] = relationship(
+        back_populates="application", cascade="all, delete-orphan"
+    )
+    reviewer_notes: Mapped[list["ReviewerNote"]] = relationship(
         back_populates="application", cascade="all, delete-orphan"
     )
 
@@ -157,6 +168,9 @@ class Document(Base):
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     extracted_fields: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_json: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    page_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    issuer_name: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -189,6 +203,12 @@ class ValidationFinding(Base):
     review_status: Mapped[FindingReviewStatus] = mapped_column(
         SAEnum(FindingReviewStatus), default=FindingReviewStatus.PENDING, nullable=False,
     )
+    highlight_snippet_id: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
+    page_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    finding_type: Mapped[str | None] = mapped_column(String(50), nullable=True, default=None)
+    status_notice: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
+    rule_citation: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    document_name: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     # Relationships
@@ -304,15 +324,34 @@ class Reviewer(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[str] = mapped_column(String(100), nullable=False, default="Compliance Reviewer")
+    role: Mapped[str] = mapped_column(String(100), nullable=False, default="Senior Compliance Reviewer")
     avatar_initials: Mapped[str] = mapped_column(String(10), nullable=False, default="RO")
     assigned_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     resolved_this_month: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    auth_provider: Mapped[str] = mapped_column(String(50), default="local", nullable=False)
+    google_sub: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    registration_status: Mapped[str] = mapped_column(String(50), default="active", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
 
 ReviewerModel = Reviewer
+
+
+class AccountAllowlist(Base):
+    """Administrator-controlled allowlist of emails approved for system access."""
+
+    __tablename__ = "account_allowlist"
+
+    email: Mapped[str] = mapped_column(String(255), primary_key=True)  # Normalized lowercase
+    assigned_role: Mapped[str] = mapped_column(String(100), default="Senior Compliance Reviewer", nullable=False)
+    is_approved: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notes: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+AllowedEmail = AccountAllowlist
 
 
 class PublicReferenceInstitution(Base):
@@ -374,3 +413,22 @@ class CrossDocComparison(Base):
 CrossDocComparisonModel = CrossDocComparison
 
 
+
+
+class ReviewerNote(Base):
+    """An internal note or remark left by a compliance reviewer on an application."""
+
+    __tablename__ = "reviewer_notes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    application_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    author: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(100), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str] = mapped_column(String(50), default="general", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+    # Relationships
+    application: Mapped["Application"] = relationship(back_populates="reviewer_notes")

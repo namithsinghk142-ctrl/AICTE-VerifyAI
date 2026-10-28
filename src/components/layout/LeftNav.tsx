@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   ChevronRight,
   BarChart3,
+  CheckCircle2,
   LogOut,
 } from 'lucide-react';
 
@@ -17,7 +18,8 @@ export type NavSection =
   | 'action-queue'
   | 'evidence-search'
   | 'audit-events'
-  | 'analytics';
+  | 'analytics'
+  | 'evaluation';
 
 interface NavItem {
   id: NavSection;
@@ -43,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'evidence-search', label: 'Evidence Search', icon: <Search size={16} /> },
   { id: 'audit-events', label: 'Audit Events', icon: <ScrollText size={16} /> },
   { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={16} /> },
+  { id: 'evaluation', label: 'Evaluation Centre', icon: <CheckCircle2 size={16} /> },
 ];
 
 export const LeftNav: React.FC<LeftNavProps> = ({
@@ -161,14 +164,11 @@ export const LeftNav: React.FC<LeftNavProps> = ({
             flexShrink: 0,
           }} />
           <div style={{ fontSize: 10, fontWeight: 600, color: backendOnline ? '#22c55e' : '#f59e0b' }}>
-            {backendOnline ? 'Backend Connected' : 'Demo Mode'}
+            {backendOnline ? 'Backend Connected' : 'Backend Offline'}
           </div>
         </div>
         <div className="text-[10px] font-medium" style={{ color: '#896F81' }}>
           AICTE VerifyAI · SIH Prototype
-        </div>
-        <div className="text-[10px] mt-0.5" style={{ color: '#6E4966' }}>
-          Synthetic demo data
         </div>
 
         {onLogout && (

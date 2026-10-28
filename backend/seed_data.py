@@ -26,27 +26,24 @@ def seed_reviewer_accounts(db: Session) -> None:
     Ensure demo reviewer accounts exist with properly hashed passwords.
     Preserves all existing reviewer accounts without overwriting or deleting.
     """
-    priya_password = os.environ.get("VERIFYAI_DEMO_PASSWORD", "VerifyAI@Demo2026")
-    priya_email = os.environ.get("VERIFYAI_DEMO_EMAIL", "priya.venkataraman@aicte-verifyai.demo").strip().lower()
+    # Obsolete Priya demo account deactivation
+    priya_rec = db.query(ReviewerModel).filter(
+        ReviewerModel.email == "priya.venkataraman@aicte-verifyai.demo"
+    ).first()
+    if priya_rec:
+        priya_rec.is_active = False
+        priya_rec.password_hash = "REVOKED$INACTIVE"
 
     adhav_password = os.environ.get("VERIFYAI_ADHAV_PASSWORD", "VerifyAI@Adhav123!")
     adhav_email = os.environ.get("VERIFYAI_ADHAV_EMAIL", "adhav.sri123@gmail.com").strip().lower()
 
+    namith_password = os.environ.get("VERIFYAI_NAMITH_PASSWORD")
+    namith_email = os.environ.get("VERIFYAI_NAMITH_EMAIL", "namithsceptile142@gmail.com").strip().lower()
+
+    import secrets
     reviewers = [
         {
             "id": "rev-001",
-            "email": priya_email,
-            "password_hash": hash_password(priya_password),
-            "name": "Priya Venkataraman",
-            "role": "Senior Compliance Reviewer",
-            "avatar_initials": "PV",
-            "assigned_count": 12,
-            "resolved_this_month": 34,
-            "is_active": True,
-            "created_at": "2026-01-15T09:00:00Z",
-        },
-        {
-            "id": "rev-002",
             "email": adhav_email,
             "password_hash": hash_password(adhav_password),
             "name": "Adhavan S",
@@ -54,6 +51,18 @@ def seed_reviewer_accounts(db: Session) -> None:
             "avatar_initials": "AS",
             "assigned_count": 8,
             "resolved_this_month": 22,
+            "is_active": True,
+            "created_at": "2026-01-15T09:00:00Z",
+        },
+        {
+            "id": "rev-002",
+            "email": namith_email,
+            "password_hash": hash_password(namith_password or secrets.token_urlsafe(32)),
+            "name": "Namith Singh",
+            "role": "Senior Compliance Reviewer",
+            "avatar_initials": "NS",
+            "assigned_count": 5,
+            "resolved_this_month": 18,
             "is_active": True,
             "created_at": "2026-01-15T09:00:00Z",
         },

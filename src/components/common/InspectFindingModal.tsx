@@ -22,6 +22,7 @@ interface InspectFindingModalProps {
   onOpenReviewWorkspace?: (submissionId: string) => void;
   onNavigateToDocument?: (documentId: string, pageNumber: number) => void;
   onDownloadNotification?: (message: string) => void;
+  onResolveFinding?: (findingId: string, status: 'confirmed' | 'dismissed', reason?: string) => void;
 }
 
 export const InspectFindingModal: React.FC<InspectFindingModalProps> = ({
@@ -32,7 +33,9 @@ export const InspectFindingModal: React.FC<InspectFindingModalProps> = ({
   onOpenReviewWorkspace,
   onNavigateToDocument,
   onDownloadNotification,
+  onResolveFinding,
 }) => {
+  const [reasonText, setReasonText] = React.useState('');
   if (!isOpen || !finding) return null;
 
   const relatedDoc = submission?.evidence.find(
@@ -262,6 +265,63 @@ export const InspectFindingModal: React.FC<InspectFindingModalProps> = ({
               {finding.reviewerNextStep ?? defaultNextStep}
             </p>
           </div>
+
+          {/* Reviewer Determination & Resolution */}
+          {onResolveFinding && (
+            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs uppercase tracking-wider text-[#896F81]">
+                  Reviewer Statutory Determination
+                </span>
+                {finding.reviewStatus && (
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                      finding.reviewStatus === 'confirmed'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-slate-100 text-slate-700 border border-slate-300'
+                    }`}
+                  >
+                    Current: {finding.reviewStatus}
+                  </span>
+                )}
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                  Reviewer Determination Rationale / Comment:
+                </label>
+                <input
+                  type="text"
+                  value={reasonText}
+                  onChange={(e) => setReasonText(e.target.value)}
+                  placeholder="e.g. Verified against official land registry, discrepancy confirmed."
+                  className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#C14E83]"
+                />
+              </div>
+              <div className="flex items-center gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onResolveFinding(finding.id, 'dismissed', reasonText || undefined);
+                    onClose();
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Dismiss Finding
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onResolveFinding(finding.id, 'confirmed', reasonText || undefined);
+                    onClose();
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <CheckCircle2 size={13} />
+                  <span>Confirm Finding</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
