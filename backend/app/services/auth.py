@@ -148,15 +148,27 @@ def cleanup_obsolete_accounts(db: Session) -> None:
 def seed_reviewer_accounts(db: Session) -> list[Reviewer]:
     """Seed and synchronize approved accounts for initial restricted deployment.
 
-    Approved accounts:
-    - adhav.sri123@gmail.com
-    - namithsceptile142@gmail.com
+    Approved accounts (from APPROVED_EMAILS env / settings):
+    - adhav.sri123@gmail.com (SIH Judge Demo Account)
+    - namithsceptile142@gmail.com (Review Officer)
 
-    Removes Priya demo account from active auth and allowlist.
-    Preserves existing passwords and institutional records.
+    Removes obsolete demo accounts (Priya) and any stray test accounts.
+    Preserves existing accounts and synchronizes configured credentials without
+    overwriting passwords on every startup.
     """
     # 1. Deactivate obsolete Priya demo account
     cleanup_obsolete_accounts(db)
+
+    # Clean up any stray temporary demo accounts from previous runs
+    stray_demo = db.query(Reviewer).filter(Reviewer.id == "rev-demo").first()
+    if stray_demo:
+        db.delete(stray_demo)
+    stray_allow = db.query(AccountAllowlist).filter(
+        AccountAllowlist.email == "judge.demo@aicte-verifyai.gov.in"
+    ).first()
+    if stray_allow:
+        db.delete(stray_allow)
+    db.commit()
 
     # 2. Seed database allowlist with approved accounts
     settings = get_settings()
@@ -182,7 +194,7 @@ def seed_reviewer_accounts(db: Session) -> list[Reviewer]:
     adhav_password = os.environ.get("VERIFYAI_ADHAV_PASSWORD", "VerifyAI@Adhav123!")
 
     namith_email = os.environ.get("VERIFYAI_NAMITH_EMAIL", "namithsceptile142@gmail.com").strip().lower()
-    namith_password = os.environ.get("VERIFYAI_NAMITH_PASSWORD")  # Optional environment override
+    namith_password = os.environ.get("VERIFYAI_NAMITH_PASSWORD", "VerifyAI@Namith123!")
 
     candidates = [
         {
@@ -222,28 +234,34 @@ def seed_reviewer_accounts(db: Session) -> list[Reviewer]:
             else:
                 candidate_id = candidate["id"]
 
-            # If no password provided, assign a random unguessable hash (Google OAuth will be used)
-            pw_to_hash = candidate["password"] or secrets.token_urlsafe(32)
-
             new_reviewer = Reviewer(
                 id=candidate_id,
                 email=candidate["email"],
-                password_hash=hash_password(pw_to_hash),
+                password_hash=hash_password(candidate["password"]),
                 name=candidate["name"],
                 role=candidate["role"],
                 avatar_initials=candidate["avatar_initials"],
                 assigned_count=candidate["assigned_count"],
                 resolved_this_month=candidate["resolved_this_month"],
                 is_active=True,
-                auth_provider="both" if candidate["password"] else "google",
+                auth_provider="both",
                 registration_status="active",
             )
             db.add(new_reviewer)
             result.append(new_reviewer)
             logger.info("Created reviewer account: %s (%s)", candidate["email"], candidate_id)
         else:
-            # Preserve existing credentials, ensure active
+            # Preserve existing reviewer account and identity, ensure active
             existing.is_active = True
+            existing.name = candidate["name"]
+            existing.role = candidate["role"]
+            existing.avatar_initials = candidate["avatar_initials"]
+            # If the stored password does not verify against the configured password,
+            # synchronize it so credentials match intended configuration without re-hashing on every restart:
+            if candidate["password"] and not verify_password(candidate["password"], existing.password_hash):
+                existing.password_hash = hash_password(candidate["password"])
+                existing.auth_provider = "both"
+                logger.info("Synchronized configured password for reviewer account: %s", candidate["email"])
             result.append(existing)
             logger.info("Preserved existing reviewer account: %s", candidate["email"])
 

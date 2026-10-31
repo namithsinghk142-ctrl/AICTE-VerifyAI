@@ -32,6 +32,7 @@ const DEFAULT_HEADERS: HeadersInit = {
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
+    credentials: 'include',
     headers: init?.body instanceof FormData ? undefined : DEFAULT_HEADERS,
     ...init,
   });

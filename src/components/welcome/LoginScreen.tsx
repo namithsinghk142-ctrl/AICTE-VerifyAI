@@ -31,6 +31,13 @@ interface LoginScreenProps {
 
 // ─── SVG Google Logo ──────────────────────────────────────────────────────────
 
+// SIH Judge demo credentials — Adhav's reviewer account.
+// Override at build time via VITE_DEMO_EMAIL / VITE_DEMO_PASSWORD env vars if needed.
+const DEMO_EMAIL: string =
+  (import.meta as any).env?.VITE_DEMO_EMAIL ?? 'adhav.sri123@gmail.com';
+const DEMO_PASSWORD: string =
+  (import.meta as any).env?.VITE_DEMO_PASSWORD ?? 'VerifyAI@Adhav123!';
+
 function GoogleLogoSVG() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
@@ -162,8 +169,8 @@ function FeaturePill({ icon, label }: { icon: React.ReactNode; label: string }) 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated }) => {
   const [mode, setMode] = useState<'signin' | 'register'>('signin');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(DEMO_EMAIL);
+  const [password, setPassword] = useState(DEMO_PASSWORD);
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -352,7 +359,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated }) => 
           if (btn) btn.click();
         }
       });
-    } catch (err: unknown) {
+    } catch {
       setError('Failed to initialize Google Sign-In. Please try again.');
     }
   };
@@ -599,6 +606,55 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated }) => 
               <GoogleLogoSVG />
               <span>{mode === 'signin' ? 'Continue with Google' : 'Sign up with Google'}</span>
             </button>
+
+            {/* SIH Judge Demo Account Banner — sign-in mode only */}
+            {mode === 'signin' && (
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(138,47,91,0.08) 0%, rgba(193,78,131,0.06) 100%)',
+                border: '1.5px solid rgba(193,78,131,0.28)',
+                borderRadius: 10, padding: '10px 13px', marginBottom: 16,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                  <ShieldCheck size={14} style={{ color: '#8A2F5B', flexShrink: 0 }} />
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: '#8A2F5B', letterSpacing: '0.02em' }}>
+                    SIH Judge Demo Account
+                  </span>
+                  <span style={{
+                    fontSize: 9.5, fontWeight: 700, color: '#C14E83',
+                    background: 'rgba(193,78,131,0.12)', borderRadius: 4,
+                    padding: '1px 5px', letterSpacing: '0.04em',
+                  }}>
+                    PRE-FILLED
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: '#55223F', lineHeight: 1.55, marginBottom: 7 }}>
+                  Adhav's reviewer credentials (<code>adhav.sri123@gmail.com</code>) are pre-filled below. Click{' '}
+                  <strong style={{ color: '#8A2F5B' }}>Sign In</strong> directly to access the full
+                  AICTE VerifyAI reviewer workspace with synthetic demonstration data.
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 6 }}>
+                  <div style={{ fontSize: 10.5, color: '#896F81' }}>
+                    <span style={{ fontWeight: 600, color: '#55223F' }}>Email: </span>
+                    <code style={{ fontSize: 10.5, color: '#8A2F5B' }}>{DEMO_EMAIL}</code>
+                  </div>
+                  <div style={{ fontSize: 10.5, color: '#896F81' }}>
+                    <span style={{ fontWeight: 600, color: '#55223F' }}>Password: </span>
+                    <code style={{ fontSize: 10.5, color: '#8A2F5B' }}>{DEMO_PASSWORD}</code>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setEmail(DEMO_EMAIL); setPassword(DEMO_PASSWORD); setError(null); setPendingNotice(null); }}
+                  style={{
+                    fontSize: 10.5, color: '#C14E83', fontWeight: 600,
+                    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                    textDecoration: 'underline', textUnderlineOffset: 2,
+                  }}
+                >
+                  ↺ Restore demo credentials
+                </button>
+              </div>
+            )}
 
             {/* Divider */}
             <div style={{
@@ -898,8 +954,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated }) => 
             }}>
               <FlaskConical size={12} style={{ color: '#92400E', flexShrink: 0, marginTop: 1.5 }} />
               <p style={{ fontSize: 10.5, color: '#78350F', margin: 0, lineHeight: 1.45 }}>
-                <strong>Restricted Deployment.</strong> Access is permitted only for approved reviewer accounts{' '}
-                (<code>adhav.sri123@gmail.com</code>, <code>namithsceptile142@gmail.com</code>).
+                <strong>SIH 2026 Demo.</strong> Use the pre-filled demo account above
+                (<code>{DEMO_EMAIL}</code>) to explore the full reviewer workspace.
                 New registrations require administrator approval.
               </p>
             </div>

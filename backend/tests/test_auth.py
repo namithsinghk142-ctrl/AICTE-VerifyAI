@@ -102,6 +102,21 @@ class TestEmailPasswordLogin:
         assert data["avatarInitials"] == "AS"
         assert "verifyai_token" in resp.cookies
 
+    def test_login_success_namith_account(self, client: TestClient) -> None:
+        email = "namithsceptile142@gmail.com"
+        password = os.environ.get("VERIFYAI_NAMITH_PASSWORD", "VerifyAI@Namith123!")
+
+        resp = client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": password},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["name"] == "Namith Singh"
+        assert data["role"] == "Senior Compliance Reviewer"
+        assert data["avatarInitials"] == "NS"
+        assert "verifyai_token" in resp.cookies
+
     def test_login_invalid_password(self, client: TestClient) -> None:
         resp = client.post(
             "/api/v1/auth/login",

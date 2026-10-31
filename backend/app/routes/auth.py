@@ -30,6 +30,7 @@ router = APIRouter(tags=["Authentication"])
 
 TOKEN_COOKIE = "verifyai_token"
 _SECURE_COOKIE = os.environ.get("VERIFYAI_SECURE_COOKIE", "false").lower() == "true"
+_COOKIE_SAMESITE = "none" if _SECURE_COOKIE else "lax"
 
 
 def _format_reviewer(reviewer: Reviewer) -> dict:
@@ -135,7 +136,7 @@ def login(payload: LoginPayload, response: Response, db: Session = Depends(get_d
         key=TOKEN_COOKIE,
         value=token,
         httponly=True,
-        samesite="lax",
+        samesite=_COOKIE_SAMESITE,
         secure=_SECURE_COOKIE,
         max_age=TOKEN_TTL_SECONDS,
         path="/",
@@ -159,7 +160,7 @@ def google_login(payload: GoogleLoginPayload, response: Response, db: Session = 
         key=TOKEN_COOKIE,
         value=token,
         httponly=True,
-        samesite="lax",
+        samesite=_COOKIE_SAMESITE,
         secure=_SECURE_COOKIE,
         max_age=TOKEN_TTL_SECONDS,
         path="/",
@@ -194,7 +195,7 @@ def register(payload: RegisterPayload, response: Response, db: Session = Depends
         key=TOKEN_COOKIE,
         value=token,
         httponly=True,
-        samesite="lax",
+        samesite=_COOKIE_SAMESITE,
         secure=_SECURE_COOKIE,
         max_age=TOKEN_TTL_SECONDS,
         path="/",
@@ -209,7 +210,12 @@ def register(payload: RegisterPayload, response: Response, db: Session = Depends
     description="Clear reviewer session cookie.",
 )
 def logout(response: Response):
-    response.delete_cookie(key=TOKEN_COOKIE, path="/", samesite="lax")
+    response.delete_cookie(
+        key=TOKEN_COOKIE,
+        path="/",
+        samesite=_COOKIE_SAMESITE,
+        secure=_SECURE_COOKIE,
+    )
     return {"detail": "Logged out successfully."}
 
 

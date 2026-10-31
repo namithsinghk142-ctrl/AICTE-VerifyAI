@@ -317,12 +317,14 @@ cd AICTE-VerifyAI
 
 AICTE VerifyAI enforces role-based access control. In development and review mode, authorized test accounts are pre-configured:
 
-| Reviewer Role | Account Email | Development Password | Access Scope |
+| Reviewer Role | Account Email | Password | Access Scope |
 |---|---|---|---|
-| **Lead Compliance Officer** | `adhav.sri123@gmail.com` | `VerifyAI@Adhav123!` | Full scrutiny authority, dossier verification, escalation, and audit access |
+| **Lead Compliance Officer (SIH Judge Demo)** | `adhav.sri123@gmail.com` | `VerifyAI@Adhav123!` | Full scrutiny authority, dossier verification, escalation, and audit access (Pre-filled on login page) |
 | **Review Officer** | `namithsceptile142@gmail.com` | `VerifyAI@Namith123!` | Scrutiny review, cross-document inspection, and clarification requests |
 
-*Google OAuth 2.0 Sign-In is also supported when `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` are configured in `.env`.*
+> **For SIH Judges:** When you visit the public website, Adhav's demo credentials (`adhav.sri123@gmail.com` / `VerifyAI@Adhav123!`) are pre-filled on the login page — click **Sign In** to immediately access the full reviewer workspace.
+
+*Google OAuth 2.0 Sign-In is also supported when `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` are configured.*
 
 ---
 
